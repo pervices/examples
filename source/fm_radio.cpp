@@ -1,13 +1,6 @@
 #include <boost/format.hpp>
 #include <boost/program_options.hpp>
 #include <chrono>
-/* #include <cmath> */
-/* #include <cstdio> */
-/* #include <cstdlib> */
-/* #include <gnuradio/analog/sig_source.h> */
-/* #include <gnuradio/audio/sink.h> */
-/* #include <gnuradio/top_block.h> */
-/* #include <iostream> */
 #include <thread>
 #include <uhd/exception.hpp>
 #include <uhd/types/tune_request.hpp>
