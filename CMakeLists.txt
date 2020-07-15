@@ -82,10 +82,20 @@ include_directories(
 )
 link_directories(${Boost_LIBRARY_DIRS})
 
+########################################################################
+# Enable generation of compile_commands.json for code completion engines
+########################################################################
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 ################################################################################
 # Make the executable
 ################################################################################
 add_executable(fm_radio source/fm_radio.cpp)
+target_link_libraries(fm_radio gnuradio-uhd)
+
+# set(GNURADIO_LIBS "-lgnuradio-runtime -lgnuradio-blocks")
+add_definitions(${GNURADIO_LIBS})
 
 set(CMAKE_BUILD_TYPE "Release")
 message(STATUS "******************************************************************************")
@@ -113,7 +123,5 @@ else(NOT UHD_USE_STATIC_LIBS)
         ${UHD_STATIC_LIB_DEPS}
     )
 endif(NOT UHD_USE_STATIC_LIBS)
-
-################################################################################
 
 ################################################################################
