@@ -10,10 +10,10 @@
 
 cmake_minimum_required(VERSION 2.8)
 
-project(FmReceiver)
+project(fm_receiver CXX)
 
 ################################################################################
-# Set up build environment
+# Set up Boost and UHD
 ################################################################################
 
 # Choose a static or shared-library build (shared is default, and static will
@@ -29,24 +29,26 @@ set(BOOST_REQUIRED_COMPONENTS
 #    chrono
 #    date_time
 #    filesystem
-#    program_options
 #    regex
-#    system
 #    unit_test_framework
 #    serialization
 )
 
-if(MSVC)
-    set(BOOST_ALL_DYN_LINK "${BOOST_ALL_DYN_LINK}" CACHE BOOL "boost enable dynamic linking")
-    if(BOOST_ALL_DYN_LINK)
-        add_definitions(-DBOOST_ALL_DYN_LINK) #setup boost auto-linking in msvc
-    else(BOOST_ALL_DYN_LINK)
-        set(BOOST_REQUIRED_COMPONENTS) #empty components list for static link
-    endif(BOOST_ALL_DYN_LINK)
-endif(MSVC)
-
 find_package(Boost "1.46" REQUIRED ${BOOST_REQUIRED_COMPONENTS})
 find_package(UHD "3.13.0" REQUIRED)
+find_package(Gnuradio "3.7.0" REQUIRED)
+
+################################################################################
+# Link libraries
+################################################################################
+include_directories(
+    ${Boost_INCLUDE_DIRS}
+    ${GR_AUDIO_INCLUDE_DIRS}
+    ${GR_ANALOG_INCLUDE_DIRS}
+    ${GNURADIO_RUNTIME_INCLUDE_DIRS}
+    ${UHD_INCLUDE_DIRS}
+)
+link_directories(${Boost_LIBRARY_DIRS})
 
 ################################################################################
 # Configure Compiler
@@ -57,53 +59,26 @@ set(GCC_MIN_VERSION "4.8.0")
 set(CLANG_MIN_VERSION "3.3.0")
 set(APPLECLANG_MIN_VERSION "500")
 
-if(CMAKE_VERSION VERSION_LESS "3.1")
-    if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
-        set(CMAKE_CXX_FLAGS "--std=gnu++11 ${CMAKE_CXX_FLAGS}")
-    elseif(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
-        if("${IS_APPLE}" STREQUAL "")
-            set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
-        else()
-            set(CMAKE_CXX_FLAGS "-std=c++11 -stdlib=libc++ ${CMAKE_CXX_FLAGS}")
-        endif()
-    endif()
-else()
-    set(CMAKE_CXX_STANDARD 11)
-endif()
-
-if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD" AND ${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
-    set(CMAKE_EXE_LINKER_FLAGS "-lthr ${CMAKE_EXE_LINKER_FLAGS}")
-    set(CMAKE_CXX_FLAGS "-stdlib=libc++ ${CMAKE_CXX_FLAGS}")
-endif()
-
-include_directories(
-    ${Boost_INCLUDE_DIRS}
-    ${UHD_INCLUDE_DIRS}
-)
-link_directories(${Boost_LIBRARY_DIRS})
-
-########################################################################
+################################################################################
 # Enable generation of compile_commands.json for code completion engines
-########################################################################
+################################################################################
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 ################################################################################
 # Make the executable
 ################################################################################
+
 add_executable(fm_radio source/fm_radio.cpp)
-target_link_libraries(fm_radio gnuradio-uhd)
+target_link_libraries(fm_radio
+  gnuradio-analog
+  gnuradio-audio
+  gnuradio-runtime
+  gnuradio-uhd)
 
-# set(GNURADIO_LIBS "-lgnuradio-runtime -lgnuradio-blocks")
+
+set(GNURADIO_LIBS "-lgnuradio-runtime -lgnuradio-blocks")
 add_definitions(${GNURADIO_LIBS})
-
-set(CMAKE_BUILD_TYPE "Release")
-message(STATUS "******************************************************************************")
-message(STATUS "* NOTE: When building your own app, you probably need all kinds of different  ")
-message(STATUS "* compiler flags. This is just an example, so it's unlikely these settings    ")
-message(STATUS "* exactly match what you require. Make sure to double-check compiler and      ")
-message(STATUS "* linker flags to make sure your specific requirements are included.          ")
-message(STATUS "******************************************************************************")
 
 # Shared library case: All we need to do is link against the library, and
 # anything else we need (in this case, some Boost libraries):

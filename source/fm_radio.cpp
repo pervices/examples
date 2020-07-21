@@ -2,11 +2,11 @@
 #include <boost/program_options.hpp>
 #include <chrono>
 #include <csignal>
-/* #include <gnuradio/audio/sink.h> */
-/* #include <gnuradio/blocks/complex_to_float.h> */
+#include <gnuradio/audio/sink.h>
+#include <gnuradio/blocks/complex_to_float.h>
 #include <gnuradio/top_block.h>
-/* #include <gnuradio/uhd/usrp_sink.h> */
-/* #include <gnuradio/uhd/usrp_source.h> */
+#include <gnuradio/uhd/usrp_sink.h>
+#include <gnuradio/uhd/usrp_source.h>
 #include <thread>
 #include <uhd/exception.hpp>
 #include <uhd/types/tune_request.hpp>
@@ -90,7 +90,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
                   << std::endl;
         return 0;
     }
-    std::cout << boost::format("Instantiating the usrp crimson device with: %s...") % device_addr
+    std::cout << boost::format("Instantiating the usrp crimson device with address: %s...") %
+                     device_addr
               << std::endl;
     uhd::usrp::multi_usrp::sptr crimson = uhd::usrp::multi_usrp::make(device_addr);
     crimson->set_clock_source(ref_src); // lock mboard clocks
@@ -127,29 +128,88 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
     //------------------------------------------------------------------
     std::this_thread::sleep_for(std::chrono::seconds(int64_t(setup_time)));
 
+    // create a receive streamer
+    std::vector<size_t> channel_nums;
+    channel_nums.push_back(0);
+
+    uhd::stream_args_t stream_args("fc32"); // complex floats
+    stream_args.channels = channel_nums;
+    uhd::rx_streamer::sptr rx_stream = crimson->get_rx_stream(stream_args);
+
+    //------------------------------------------------------------------
+    //-- setup streaming
+    //------------------------------------------------------------------
+    int total_num_samples = 1000;
+    double seconds_in_future = 1.5;
+    double delta = 1.0;
+
+    std::cout << std::endl
+              << boost::format("Begin streaming %u samples, %5.2f seconds in the future...") %
+                     total_num_samples % seconds_in_future
+              << std::endl;
+
+    uhd::stream_cmd_t stream_cmd(uhd::stream_cmd_t::STREAM_MODE_NUM_SAMPS_AND_DONE);
+    stream_cmd.num_samps = total_num_samples;
+    stream_cmd.stream_now = false;
+    stream_cmd.time_spec = uhd::time_spec_t(seconds_in_future);
+    rx_stream->issue_stream_cmd(stream_cmd);
+
+    uhd::rx_metadata_t metadata;
+    const size_t samples_per_buff = rx_stream->get_max_num_samps();
+    std::vector<std::vector<std::complex<float>>> buffs(
+        1, std::vector<std::complex<float>>(samples_per_buff));
+
+    std::complex<float> *buff_ptr;
+
+    // the first call to recv() will block this many seconds before receiving
+    double timeout = seconds_in_future + delta;
+    size_t num_acc_samples = 0;
+
+    while (num_acc_samples < total_num_samples) {
+
+        // receive a single packet
+        size_t num_rx_samples = rx_stream->recv(buff_ptr, samples_per_buff, metadata, timeout);
+
+        timeout = delta; // use a smaller timeout for subsequent packets
+
+        if (metadata.error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT) {
+            break;
+        }
+
+        if (metadata.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE) {
+            throw std::runtime_error(str(boost::format("Receiver error %s") % metadata.strerror()));
+        }
+
+        num_acc_samples += num_rx_samples;
+    }
+
+    if (num_acc_samples < total_num_samples) {
+        std::cerr << "Receive timeout before all samples received..." << std::endl;
+    }
+
     //  ================================================================================
-    /* gr::top_block_sptr tb = gr::make_top_block("program_name"); */
+    gr::top_block_sptr tb = gr::make_top_block("program_name");
 
-    /* gr::uhd::usrp_source::sptr usrp_source = */
-    /* gr::uhd::usrp_source::make(device_addr, uhd::stream_args_t("fc32")); */
-    /* usrp_source->set_samp_rate(rate); */
-    /* usrp_source->set_center_frequency(freq); */
+    gr::uhd::usrp_source::sptr usrp_source =
+        gr::uhd::usrp_source::make(device_addr, uhd::stream_args_t("fc32"));
+    usrp_source->set_samp_rate(actual_sample_rate);
+    usrp_source->set_center_freq(center_frequency);
 
-    /* gr::uhd::usrp_sink::sptr usrp_sink = gr::uhd::usrp_sink::make(device_addr,
-     * uhd::stream_args_t("fc32")); */
-    /* usrp_sink->set_samp_rate(rate); */
-    /* usrp_sink->set_center_frequency(freq); */
-    /* tb->connect(usrp_source, 0, usrp_sink, 0); */
+    gr::uhd::usrp_sink::sptr usrp_sink =
+        gr::uhd::usrp_sink::make(device_addr, uhd::stream_args_t("fc32"));
+    usrp_sink->set_samp_rate(actual_sample_rate);
+    usrp_sink->set_center_freq(center_frequency);
+    tb->connect(usrp_source, 0, usrp_sink, 0);
     // ================================================================================
 
     //------------------------------------------------------------------
     //-- poll the exit signal while running
     //------------------------------------------------------------------
-    /* std::cout << "starting flow graph" << std::endl; */
-    /* tb->start(); */
+    std::cout << "starting flow graph" << std::endl;
+    tb->start();
 
     std::signal(SIGINT, &sig_int_handler);
-    std::cout << "Press ctrl + c to exit" << std::endl;
+    std::cout << "Press ctrl + c to exit." << std::endl;
     while (not stop_signal_called) {
         boost::this_thread::sleep(boost::posix_time::milliseconds(100));
     }
