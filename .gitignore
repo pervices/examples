@@ -36,6 +36,9 @@
 *swp
 *.pyc
 
+# tags
+tags
+
 # cmake
 CMakeLists.txt.user
 CMakeCache.txt
