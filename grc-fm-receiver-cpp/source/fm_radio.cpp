@@ -173,7 +173,7 @@ std::vector<double> remezord(std::vector<double> fcuts, std::vector<double> mags
     }
 
     float l, l1, l2;
-    if (nbands = 2) {
+    if (nbands == 2) {
         l = lporder(f1[n], f2[n], devs[0], devs[1]);
     } else {
         l = 0;
