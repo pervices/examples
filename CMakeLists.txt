@@ -73,6 +73,7 @@ add_executable(fm_radio source/fm_radio.cpp)
 target_link_libraries(fm_radio
   gnuradio-analog
   gnuradio-audio
+  gnuradio-filter
   gnuradio-runtime
   gnuradio-uhd)
 

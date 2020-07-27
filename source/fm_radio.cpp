@@ -1,18 +1,35 @@
+#define _USE_MATH_DEFINES
+
 #include <boost/format.hpp>
 #include <boost/program_options.hpp>
 #include <chrono>
 #include <csignal>
+#include <gnuradio/analog/quadrature_demod_cf.h>
 #include <gnuradio/audio/sink.h>
 #include <gnuradio/blocks/complex_to_float.h>
+#include <gnuradio/filter/fir_filter_fff.h>
+#include <gnuradio/filter/rational_resampler_base_ccc.h>
 #include <gnuradio/top_block.h>
 #include <gnuradio/uhd/usrp_sink.h>
 #include <gnuradio/uhd/usrp_source.h>
+#include <math.h>
 #include <thread>
 #include <uhd/exception.hpp>
 #include <uhd/types/tune_request.hpp>
 #include <uhd/usrp/multi_usrp.hpp>
 #include <uhd/utils/safe_main.hpp>
 #include <uhd/utils/thread.hpp>
+
+#define K(CHANNEL_RATE, DEVIATION) (CHANNEL_RATE / 2 * M_PI * DEVIATION)
+/* #define STOPBAND_ATTEN_TO_DEV(ATTEN_DB)  (std::pow(10, -ATTEN_DB / 20)) */
+/* #define PASSBAND_ATTEN_TO_DEV(RIPPLE_DB) (10 * *(RIPPLE_DB / 20) - 1) / (10 * *(RIPPLE_DB / 20) +
+ * 1) */
+
+#define debug_print(fmt, ...)                                                                      \
+    do {                                                                                           \
+        if (DEBUG)                                                                                 \
+            fprintf(stderr, fmt, __VA_ARGS__);                                                     \
+    } while (0)
 
 /**
  * copy files over with:
@@ -23,6 +40,7 @@
 //-- Constants
 //--------------------------------------------------------------------------------------------------
 const std::string PROGRAM_NAME = "program_name";
+const std::string STREAM_ARGS = "fc32";
 
 const int AUDIO_CARD_SAMP_RATE = 48e3;
 
@@ -63,7 +81,7 @@ void print_usage(po::options_description desc)
               << desc << std::endl
               << std::endl
               << "Examples:" << std::endl
-              << "    fm_radio --help" << std::endl // TODO
+              << "    fm_radio --help" << std::endl  // TODO
               << std::endl;
 }
 
@@ -107,7 +125,7 @@ int setup_usrp_device(uhd::usrp::multi_usrp::sptr usrp_device, std::shared_ptr<U
     std::cout << boost::format("Instantiating the usrp usrp_device device with address: %s...") %
                      user_args->device_addr
               << std::endl;
-    usrp_device->set_clock_source(user_args->ref_src); // lock mboard clocks
+    usrp_device->set_clock_source(user_args->ref_src);  // lock mboard clocks
 
     //---------------------------------------------------------------------------------------------
     //-- Set the Sample Rate
@@ -169,72 +187,58 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
     // create a receive streamer
     std::vector<size_t> channel_nums;
     channel_nums.push_back(0);
-    uhd::stream_args_t stream_args("fc32");
+    uhd::stream_args_t stream_args(STREAM_ARGS);
     stream_args.channels = channel_nums;
     uhd::rx_streamer::sptr rx_stream = usrp_device->get_rx_stream(stream_args);
 
     //---------------------------------------------------------------------------------------------
-    //-- setup streaming
+    //-- GNU Radio blocks
     //---------------------------------------------------------------------------------------------
-    /* int total_num_samples = 1000; */
-    /* double seconds_in_future = 1.5; */
-    /* double delta = 1.0; */
 
-    /* std::cout << std::endl */
-    /*           << boost::format("Begin streaming %u samples, %5.2f seconds in the future...") % */
-    /*                  total_num_samples % seconds_in_future */
-    /*           << std::endl; */
-
-    /* uhd::stream_cmd_t stream_cmd(uhd::stream_cmd_t::STREAM_MODE_NUM_SAMPS_AND_DONE); */
-    /* stream_cmd.num_samps = total_num_samples; */
-    /* stream_cmd.stream_now = false; */
-    /* stream_cmd.time_spec = uhd::time_spec_t(seconds_in_future); */
-    /* rx_stream->issue_stream_cmd(stream_cmd); */
-
-    /* uhd::rx_metadata_t metadata; */
-    /* const size_t samples_per_buff = rx_stream->get_max_num_samps(); */
-    /* std::vector<std::vector<std::complex<float>>> buffs( */
-    /*     1, std::vector<std::complex<float>>(samples_per_buff)); */
-
-    /* std::complex<float> *buff_ptr; */
-
-    /* // the first call to recv() will block this many seconds before receiving */
-    /* double timeout = seconds_in_future + delta; */
-    /* size_t num_acc_samples = 0; */
-
-    /* while (num_acc_samples < total_num_samples) { */
-
-    /*     // receive a single packet */
-    /*     size_t num_rx_samples = rx_stream->recv(buff_ptr, samples_per_buff, metadata, timeout);
-     */
-
-    /*     timeout = delta; // use a smaller timeout for subsequent packets */
-
-    /*     if (metadata.error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT) { */
-    /*         break; */
-    /*     } */
-
-    /*     if (metadata.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE) { */
-    /*         throw std::runtime_error(str(boost::format("Receiver error %s") %
-     * metadata.strerror())); */
-    /*     } */
-
-    /*     num_acc_samples += num_rx_samples; */
-    /* } */
-
-    /* if (num_acc_samples < total_num_samples) { */
-    /*     std::cerr << "Receive timeout before all samples received..." << std::endl; */
-    /* } */
-
+    // Create top block
     gr::top_block_sptr tb = gr::make_top_block(PROGRAM_NAME);
     gr::uhd::usrp_source::sptr usrp_source =
         gr::uhd::usrp_source::make(user_args->device_addr, stream_args);
     usrp_source->set_samp_rate(user_args->sample_rate);
     usrp_source->set_center_freq(user_args->center_frequency);
 
+    // Resample source
+    std::vector<std::complex<float>> taps;  // TODO: WTF is a tap?
+    taps.push_back(std::complex<float>(1, 2));
+    gr::filter::rational_resampler_base_ccc::sptr resampler =
+        gr::filter::rational_resampler_base_ccc::make(1, 5, taps);
+    tb->connect(usrp_source, 0, resampler, 0);
+
+    // Demodulate quadrature
+    float deviation = 150e3;
+    float k = user_args->channel / (2 * M_PI * deviation);
+    gr::analog::quadrature_demod_cf::sptr quad_demod = gr::analog::quadrature_demod_cf::make(k);
+    tb->connect(resampler, 0, quad_demod, 0);
+
+    // TODO: low_pass
+    std::vector<float> audio_taps;  // TODO: WTF is a tap?
+    float audio_pass = 15000;
+    float audio_stop = 16000;
+    float passband_ripple = 0.1;
+    float stopband_attenuation = 60;
+    float stopband_dev = std::pow(10, -stopband_attenuation / 20);
+    float passband_dev =
+        (std::pow(10, (passband_ripple / 20)) - 1) / (pow(10, (passband_ripple / 20) + 1));
+
+    /* std::vector<double> garbage; */
+    /* garbage.push_back(1.0, 2.0); */
+    /* std::vector<double> pm_remez_filter = */
+    /*     gr::filter::pm_remez(1, garbage, garbage, garbage, "bandpass", 16); */
+
+    // fir_filter_fff
+    audio_taps.push_back(1.0);
+    gr::filter::fir_filter_fff::sptr fir_filter = gr::filter::fir_filter_fff::make(1, audio_taps);
+    tb->connect(quad_demod, 0, fir_filter, 0);
+
+    // audio sink
     gr::audio::sink::sptr audio_sink = gr::audio::sink::make(AUDIO_CARD_SAMP_RATE);
-    tb->connect(usrp_source, 0, audio_sink, LEFT_CHANNEL);
-    tb->connect(usrp_source, 0, audio_sink, RIGHT_CHANNEL);
+    tb->connect(fir_filter, 0, audio_sink, LEFT_CHANNEL);
+    tb->connect(fir_filter, 0, audio_sink, RIGHT_CHANNEL);
 
     //---------------------------------------------------------------------------------------------
     //-- poll the exit signal while running
@@ -247,6 +251,9 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
     while (not stop_signal_called) {
         boost::this_thread::sleep(boost::posix_time::milliseconds(100));
     }
+
+    tb->stop();
+    tb->wait();
 
     std::cout << std::endl << "done!" << std::endl;
     return EXIT_SUCCESS;
