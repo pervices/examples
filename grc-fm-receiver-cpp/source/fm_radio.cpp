@@ -23,13 +23,28 @@
 #include <uhd/utils/safe_main.hpp>
 #include <uhd/utils/thread.hpp>
 
+
+//--------------------------------------------------------------------------------------------------
+//-- Debugging Tool
+//--------------------------------------------------------------------------------------------------
+#define DEBUG 1
+
+#ifdef DEBUG
+#define DEBUG_PRINT(fmt, args...) \
+	fprintf(stderr, "DEBUG: %d:%s(): " fmt "\n", __LINE__, __func__, ##args)
+#else
+#define DEBUG_PRINT(fmt, args...) do{ } while ( 0 )
+#endif
+
+
+
 /**
  * copy files over with:
  *   rsync -av --exclude=".git" ../fm_receiver jade@summers:~/vikram/cpp
  */
 
 //--------------------------------------------------------------------------------------------------
-//-- Constants
+//-- Global Constants
 //--------------------------------------------------------------------------------------------------
 const std::string PROGRAM_NAME = "program_name";
 const std::string STREAM_ARGS = "fc32";
@@ -69,8 +84,8 @@ void sig_int_handler(int) { stop_signal_called = true; }
 std::vector<float> convert_vector_doubles_to_floats(std::vector<double> vec_doubles)
 {
     std::vector<float> vec_floats;
-    for (int i = 0; i < vec_doubles.size(); i++) {
-        vec_floats.push_back(vec_doubles[i]);
+    for (auto val : vec_doubles) {
+        vec_floats.push_back(val);
     }
 
     return vec_floats;
@@ -93,35 +108,36 @@ float lporder(float freq1, float freq2, float delta_p, float delta_s)
      * normalized to the sampling frequency.  delta_p is the passband
      * deviation (ripple), delta_s is the stopband deviation (ripple).
      * Note, this works for high pass filters too (freq1 > freq2), but
-     * doesn't work well if the transition is near f == 0 or f == fs/2
+     * doesn't work well if the transition is near f == 0 or f == fs / 2
+     *
      * From Herrmann et al (1973), Practical design rules for optimum
      * finite impulse response filters.
      *
      * Bell System Technical J., 52, 769-99
      **/
 
-    float df = std::abs(freq2 - freq1);
-    float ddp = std::log10(delta_p);
-    float dds = std::log10(delta_s);
+    const float df = std::abs(freq2 - freq1);
+    const float ddp = std::log10(delta_p);
+    const float dds = std::log10(delta_s);
 
-    float a1 = 5.309e-3;
-    float a2 = 7.114e-2;
-    float a3 = -4.761e-1;
-    float a4 = -2.66e-3;
-    float a5 = -5.941e-1;
-    float a6 = -4.278e-1;
+    const float a1 = 5.309e-3;
+    const float a2 = 7.114e-2;
+    const float a3 = -4.761e-1;
+    const float a4 = -2.66e-3;
+    const float a5 = -5.941e-1;
+    const float a6 = -4.278e-1;
 
-    float b1 = 11.01217;
-    float b2 = 0.5124401;
+    const float b1 = 11.01217;
+    const float b2 = 0.5124401;
 
-    float t1 = a1 * ddp * ddp;
-    float t2 = a2 * ddp;
-    float t3 = a4 * ddp * ddp;
-    float t4 = a5 * ddp;
+    const float t1 = a1 * ddp * ddp;
+    const float t2 = a2 * ddp;
+    const float t3 = a4 * ddp * ddp;
+    const float t4 = a5 * ddp;
 
-    float dinf = ((t1 + t2 + a3) * dds) + (t3 + t4 + a6);
-    float ff = b1 + b2 * (ddp - dds);
-    float n = dinf / df - ff * df + 1;
+    const float dinf = ((t1 + t2 + a3) * dds) + (t3 + t4 + a6);
+    const float ff = b1 + b2 * (ddp - dds);
+    const float n = dinf / df - ff * df + 1;
 
     return n;
 }
@@ -130,7 +146,7 @@ std::vector<double> remezord(std::vector<double> fcuts, std::vector<double> mags
                              std::vector<double> devs, int nextra_taps, int fsamp = 2)
 {
 
-    float nbands = mags.size();
+    int nbands = mags.size();
 
     /**
      * fsamp defaults to 2 Hz, implying a Nyquist frequency of 1 Hz.
@@ -138,7 +154,7 @@ std::vector<double> remezord(std::vector<double> fcuts, std::vector<double> mags
      * sampling frequency.
      */
     for (int i = 0; i < fcuts.size(); i++) {
-        fcuts[i] = fcuts[i] / fsamp;
+        fcuts[i] /= fsamp;
     }
 
     if (mags.size() != devs.size()) {
@@ -150,7 +166,9 @@ std::vector<double> remezord(std::vector<double> fcuts, std::vector<double> mags
     }
 
     for (int i = 1; i < mags.size(); i++) {
-        devs[i] = devs[i] / mags[i];
+	if (mags[i] != 0){
+            devs[i] /= mags[i];
+	}
     }
 
     std::vector<double> f1, f2;
@@ -161,7 +179,6 @@ std::vector<double> remezord(std::vector<double> fcuts, std::vector<double> mags
             f2.push_back(fcuts[i]);
         }
     }
-
     int n = 0;
     int min_delta = 2;
 
@@ -171,6 +188,7 @@ std::vector<double> remezord(std::vector<double> fcuts, std::vector<double> mags
             min_delta = f2[i] - f1[i];
         }
     }
+
 
     float l, l1, l2;
     if (nbands == 2) {
@@ -185,15 +203,17 @@ std::vector<double> remezord(std::vector<double> fcuts, std::vector<double> mags
         }
     }
 
-    n = (int) (ceil(l) - 1);
+    n = (int) (ceil(l)) - 1;
+
 
     std::vector<double> fo;
     fo.push_back(0.0);
-    for (int i = 0; i < fcuts.size(); i++) {
-        fo.push_back(fcuts[i]);
+    for (auto val : fcuts) {
+        fo.push_back(val);
     }
     fo.push_back(1.0);
-    for (int i = 0; i < fo.size(); i++) {
+
+    for (int i = 1; i < fcuts.size() - 1; i++) {
         fo[i] *= 2;
     }
 
@@ -208,7 +228,7 @@ std::vector<double> remezord(std::vector<double> fcuts, std::vector<double> mags
     std::vector<double> wts;
     double max_deviations = vector_max(devs);
     for (int i = 0; i < devs.size(); i++) {
-        wts[i] = max_deviations / devs[i];
+        wts.push_back(max_deviations / devs[i]);
     }
 
     std::vector<double> remez_out = gr::filter::pm_remez(n + nextra_taps, fo, ao, wts);
@@ -231,8 +251,9 @@ std::vector<float> low_pass(float gain, float samp_rate, float passband_end, flo
     magnitudes.push_back(gain);
     magnitudes.push_back(0);
 
-    max_deviations.push_back(stopband_dev);
     max_deviations.push_back(passband_dev);
+    max_deviations.push_back(stopband_dev);
+    
 
     std::vector<double> remez_out =
         remezord(frequency_band_edges, magnitudes, max_deviations, nextra_taps, samp_rate);
@@ -337,6 +358,7 @@ int setup_usrp_device(uhd::usrp::multi_usrp::sptr usrp_device, std::shared_ptr<U
 int UHD_SAFE_MAIN(int argc, char *argv[])
 {
     uhd::set_thread_priority_safe();
+
 
     // set program args
     po::variables_map vm;
