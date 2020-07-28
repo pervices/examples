@@ -9,6 +9,7 @@
 #include <gnuradio/audio/sink.h>
 #include <gnuradio/blocks/complex_to_float.h>
 #include <gnuradio/filter/fir_filter_fff.h>
+#include <gnuradio/filter/firdes.h>
 #include <gnuradio/filter/pm_remez.h>
 #include <gnuradio/filter/rational_resampler_base_ccf.h>
 #include <gnuradio/top_block.h>
@@ -262,8 +263,7 @@ std::vector<float> low_pass(float gain, float samp_rate, float passband_end, flo
     return taps;
 }
 
-std::vector<std::complex<float>> design_filter(int interpolation, int decimation,
-                                               float fractional_bw = 0.4)
+std::vector<float> design_filter(int interpolation, int decimation, float fractional_bw = 0.4)
 {
     if (fractional_bw >= 0.5 or fractional_bw <= 0) {
         std::cerr << "Invalid fractional_bandwidth, must be in (0, 0.5)";
@@ -282,7 +282,10 @@ std::vector<std::complex<float>> design_filter(int interpolation, int decimation
         mid_transition_band = rate * halfband - trans_width / 2.0;
     }
 
-    std::vector<std::complex<float>> taps;
+    std::vector<float> taps;
+
+    taps = gr::filter::firdes::low_pass(interpolation, interpolation, mid_transition_band,
+                                        trans_width);
 
     /* taps = low_pass(interpolation, interpolation, mid_transition_band, trans_width, */
     /*                 filter.firdes."WIN_KAISER", beta); */
