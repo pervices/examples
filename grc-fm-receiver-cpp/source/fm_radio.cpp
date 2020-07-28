@@ -10,7 +10,7 @@
 #include <gnuradio/blocks/complex_to_float.h>
 #include <gnuradio/filter/fir_filter_fff.h>
 #include <gnuradio/filter/pm_remez.h>
-#include <gnuradio/filter/rational_resampler_base_ccc.h>
+#include <gnuradio/filter/rational_resampler_base_ccf.h>
 #include <gnuradio/top_block.h>
 #include <gnuradio/uhd/usrp_sink.h>
 #include <gnuradio/uhd/usrp_source.h>
@@ -418,6 +418,11 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
     //-- GNU Radio blocks
     //---------------------------------------------------------------------------------------------
 
+    // Low pass filter to obtain taps
+    float audio_pass = 15e3;
+    float audio_stop = 16e3;
+    std::vector<float> audio_taps = low_pass(user_args->gain, channel_rate, audio_pass, audio_stop);
+
     // Create top block
     gr::top_block_sptr tb = gr::make_top_block(PROGRAM_NAME);
     gr::uhd::usrp_source::sptr usrp_source =
@@ -426,21 +431,17 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
     usrp_source->set_center_freq(user_args->center_frequency);
 
     // Resample source
-    // std::vector<std::complex<float>> taps;
-    // taps.push_back(std::complex<float>(1, 2));
-    // gr::filter::rational_resampler_base_ccc::sptr resampler =
-    //     gr::filter::rational_resampler_base_ccc::make(INTERPOL_FACTOR, DECI_FACTOR, taps);
+    // std::vector<float> taps;
+    // taps.push_back(1.0);
+    //
+    // gr::filter::rational_resampler_base_ccf::sptr resampler =
+    //     gr::filter::rational_resampler_base_ccf::make(INTERPOL_FACTOR, DECI_FACTOR, taps);
     // tb->connect(usrp_source, 0, resampler, 0);
 
     // Demodulate quadrature
     gr::analog::quadrature_demod_cf::sptr quad_demod = gr::analog::quadrature_demod_cf::make(k);
     // tb->connect(resampler, 0, quad_demod, 0);
     tb->connect(usrp_source, 0, quad_demod, 0);
-
-    // Low pass filter to obtain taps
-    float audio_pass = 15e3;
-    float audio_stop = 16e3;
-    std::vector<float> audio_taps = low_pass(user_args->gain, channel_rate, audio_pass, audio_stop);
 
     // fir_filter_fff
     gr::filter::fir_filter_fff::sptr fir_filter =
