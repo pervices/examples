@@ -23,20 +23,19 @@
 #include <uhd/utils/safe_main.hpp>
 #include <uhd/utils/thread.hpp>
 
-
 //--------------------------------------------------------------------------------------------------
 //-- Debugging Tool
 //--------------------------------------------------------------------------------------------------
 #define DEBUG 1
 
 #ifdef DEBUG
-#define DEBUG_PRINT(fmt, args...) \
-	fprintf(stderr, "DEBUG: %d:%s(): " fmt "\n", __LINE__, __func__, ##args)
+#define DEBUG_PRINT(fmt, args...)                                                                  \
+    fprintf(stderr, "DEBUG: %d:%s(): " fmt "\n", __LINE__, __func__, ##args)
 #else
-#define DEBUG_PRINT(fmt, args...) do{ } while ( 0 )
+#define DEBUG_PRINT(fmt, args...)                                                                  \
+    do {                                                                                           \
+    } while (0)
 #endif
-
-
 
 /**
  * copy files over with:
@@ -166,9 +165,9 @@ std::vector<double> remezord(std::vector<double> fcuts, std::vector<double> mags
     }
 
     for (int i = 1; i < mags.size(); i++) {
-	if (mags[i] != 0){
+        if (mags[i] != 0) {
             devs[i] /= mags[i];
-	}
+        }
     }
 
     std::vector<double> f1, f2;
@@ -189,7 +188,6 @@ std::vector<double> remezord(std::vector<double> fcuts, std::vector<double> mags
         }
     }
 
-
     float l, l1, l2;
     if (nbands == 2) {
         l = lporder(f1[n], f2[n], devs[0], devs[1]);
@@ -204,7 +202,6 @@ std::vector<double> remezord(std::vector<double> fcuts, std::vector<double> mags
     }
 
     n = (int) (ceil(l)) - 1;
-
 
     std::vector<double> fo;
     fo.push_back(0.0);
@@ -253,7 +250,6 @@ std::vector<float> low_pass(float gain, float samp_rate, float passband_end, flo
 
     max_deviations.push_back(passband_dev);
     max_deviations.push_back(stopband_dev);
-    
 
     std::vector<double> remez_out =
         remezord(frequency_band_edges, magnitudes, max_deviations, nextra_taps, samp_rate);
@@ -358,7 +354,6 @@ int setup_usrp_device(uhd::usrp::multi_usrp::sptr usrp_device, std::shared_ptr<U
 int UHD_SAFE_MAIN(int argc, char *argv[])
 {
     uhd::set_thread_priority_safe();
-
 
     // set program args
     po::variables_map vm;
