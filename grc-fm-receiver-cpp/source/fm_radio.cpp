@@ -48,7 +48,11 @@
 const std::string PROGRAM_NAME = "program_name";
 const std::string STREAM_ARGS = "fc32";
 
+const int FM_BROADCAST_DEVIATION = 15e3;
 const int AUDIO_CARD_SAMP_RATE = 48e3;
+
+const int INTERPOL_FACTOR = 1;
+const int DECI_FACTOR = 5;
 
 const int LEFT_CHANNEL = 0;
 const int RIGHT_CHANNEL = 1;
@@ -298,7 +302,7 @@ po::options_description set_program_args(std::shared_ptr<UserArgs> user_args)
 }
 
 int setup_usrp_device(uhd::usrp::multi_usrp::sptr usrp_device, std::shared_ptr<UserArgs> user_args,
-                      po::variables_map vm)
+                      double *actual_sample_rate, double *actual_gain, po::variables_map vm)
 {
     //---------------------------------------------------------------------------------------------
     //-- Instantiate Crimson Device
@@ -319,7 +323,6 @@ int setup_usrp_device(uhd::usrp::multi_usrp::sptr usrp_device, std::shared_ptr<U
     //---------------------------------------------------------------------------------------------
     //-- Set the Sample Rate
     //---------------------------------------------------------------------------------------------
-    double actual_sample_rate;
     if (user_args->sample_rate <= 0.0) {
         std::cerr << boost::format("%s is not a valid sample rate.") % user_args->sample_rate
                   << "The sample rate needs to be a positive float"
@@ -329,18 +332,17 @@ int setup_usrp_device(uhd::usrp::multi_usrp::sptr usrp_device, std::shared_ptr<U
     std::cout << boost::format("Setting RX Rate: %f Msps...") % (user_args->sample_rate / 1e6)
               << std::endl;
     usrp_device->set_rx_rate(user_args->sample_rate, user_args->channel);
-    actual_sample_rate = usrp_device->get_rx_rate(user_args->channel) / 1e6;
-    std::cout << boost::format("Actual RX Rate: %f Msps...") % actual_sample_rate << std::endl;
+    *actual_sample_rate = usrp_device->get_rx_rate(user_args->channel) / 1e6;
+    std::cout << boost::format("Actual  RX Rate: %f Msps...") % *actual_sample_rate << std::endl;
 
     //---------------------------------------------------------------------------------------------
     //-- Set the RF Gain
     //---------------------------------------------------------------------------------------------
-    double actual_gain;
     if (vm.count("gain")) {
         std::cout << boost::format("Setting RX Gain: %f dB...") % user_args->gain << std::endl;
         usrp_device->set_rx_gain(user_args->gain, user_args->channel);
-        actual_gain = usrp_device->get_rx_gain(user_args->channel);
-        std::cout << boost::format("Actual RX Gain: %f dB...") % actual_gain << std::endl;
+        *actual_gain = usrp_device->get_rx_gain(user_args->channel);
+        std::cout << boost::format("Actual  RX Gain: %f dB...") % *actual_gain << std::endl;
     }
 
     //---------------------------------------------------------------------------------------------
@@ -369,7 +371,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
     }
 
     uhd::usrp::multi_usrp::sptr usrp_device = uhd::usrp::multi_usrp::make(user_args->device_addr);
-    if (setup_usrp_device(usrp_device, user_args, vm) != 0) {
+    double sample_rate, gain;
+    if (setup_usrp_device(usrp_device, user_args, &sample_rate, &gain, vm) != 0) {
         return ~0;
     };
 
@@ -379,6 +382,9 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
     uhd::stream_args_t stream_args(STREAM_ARGS);
     stream_args.channels = channel_nums;
     uhd::rx_streamer::sptr rx_stream = usrp_device->get_rx_stream(stream_args);
+
+    float channel_rate = (user_args->sample_rate) / DECI_FACTOR;
+    float k = channel_rate / (2 * M_PI * FM_BROADCAST_DEVIATION);
 
     //---------------------------------------------------------------------------------------------
     //-- GNU Radio blocks
@@ -392,26 +398,25 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
     usrp_source->set_center_freq(user_args->center_frequency);
 
     // Resample source
-    std::vector<std::complex<float>> taps;  // TODO: WTF is a tap?
-    taps.push_back(std::complex<float>(1, 2));
-    gr::filter::rational_resampler_base_ccc::sptr resampler =
-        gr::filter::rational_resampler_base_ccc::make(1, 5, taps);
-    tb->connect(usrp_source, 0, resampler, 0);
+    // std::vector<std::complex<float>> taps;
+    // taps.push_back(std::complex<float>(1, 2));
+    // gr::filter::rational_resampler_base_ccc::sptr resampler =
+    //     gr::filter::rational_resampler_base_ccc::make(INTERPOL_FACTOR, DECI_FACTOR, taps);
+    // tb->connect(usrp_source, 0, resampler, 0);
 
     // Demodulate quadrature
-    float deviation = 15e3;
-    float k = user_args->channel / (2 * M_PI * deviation);
     gr::analog::quadrature_demod_cf::sptr quad_demod = gr::analog::quadrature_demod_cf::make(k);
-    tb->connect(resampler, 0, quad_demod, 0);
+    // tb->connect(resampler, 0, quad_demod, 0);
+    tb->connect(usrp_source, 0, quad_demod, 0);
 
     // Low pass filter to obtain taps
     float audio_pass = 15e3;
     float audio_stop = 16e3;
-    std::vector<float> audio_taps =
-        low_pass(user_args->gain, user_args->sample_rate, audio_pass, audio_stop);
+    std::vector<float> audio_taps = low_pass(user_args->gain, channel_rate, audio_pass, audio_stop);
 
     // fir_filter_fff
-    gr::filter::fir_filter_fff::sptr fir_filter = gr::filter::fir_filter_fff::make(1, audio_taps);
+    gr::filter::fir_filter_fff::sptr fir_filter =
+        gr::filter::fir_filter_fff::make(user_args->gain, audio_taps);
     tb->connect(quad_demod, 0, fir_filter, 0);
 
     // audio sink
@@ -426,9 +431,9 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
     tb->start();
 
     std::signal(SIGINT, &sig_int_handler);
-    std::cout << "Press ctrl + c to exit." << std::endl;
+    std::cout << "Press Ctrl + C to exit." << std::endl;
     while (not stop_signal_called) {
-        boost::this_thread::sleep(boost::posix_time::milliseconds(100));
+        boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
     }
     tb->stop();
     tb->wait();
