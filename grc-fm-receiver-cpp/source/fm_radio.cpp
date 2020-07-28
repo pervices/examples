@@ -262,6 +262,34 @@ std::vector<float> low_pass(float gain, float samp_rate, float passband_end, flo
     return taps;
 }
 
+std::vector<std::complex<float>> design_filter(int interpolation, int decimation,
+                                               float fractional_bw = 0.4)
+{
+    if (fractional_bw >= 0.5 or fractional_bw <= 0) {
+        std::cerr << "Invalid fractional_bandwidth, must be in (0, 0.5)";
+    }
+
+    float beta = 7.0;
+    float halfband = 0.5;
+    float rate = float(interpolation) / float(decimation);
+    float trans_width, mid_transition_band;
+
+    if (rate >= 1.0) {
+        trans_width = halfband - fractional_bw;
+        mid_transition_band = halfband - trans_width / 2.0;
+    } else {
+        trans_width = rate * (halfband - fractional_bw);
+        mid_transition_band = rate * halfband - trans_width / 2.0;
+    }
+
+    std::vector<std::complex<float>> taps;
+
+    /* taps = low_pass(interpolation, interpolation, mid_transition_band, trans_width, */
+    /*                 filter.firdes."WIN_KAISER", beta); */
+
+    return taps;
+}
+
 //--------------------------------------------------------------------------------------------------
 //-- Program
 //--------------------------------------------------------------------------------------------------
