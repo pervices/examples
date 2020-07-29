@@ -49,11 +49,15 @@
 const std::string PROGRAM_NAME = "program_name";
 const std::string STREAM_ARGS = "fc32";
 
-const int FM_BROADCAST_DEVIATION = 15e3;
+const int FM_BROADCAST_DEVIATION = 75e3;
 const int AUDIO_CARD_SAMP_RATE = 48e3;
 
 const int INTERPOL_FACTOR = 1;
-const int DECI_FACTOR = 5;
+const int DECI_FACTOR_RR = 5;
+const int DECI_FACTOR_DEMOD = 4;
+
+const float AUDIO_PASS = 16e3;
+const float AUDIO_STOP = 20e3;
 
 const int LEFT_CHANNEL = 0;
 const int RIGHT_CHANNEL = 1;
@@ -237,10 +241,11 @@ std::vector<double> remezord(std::vector<double> fcuts, std::vector<double> mags
     return remez_out;
 }
 
-std::vector<float> low_pass(float gain, float samp_rate, float passband_end, float stopband_start,
-                            float passband_ripple_db = 0.1, float stopband_atten_db = 60,
-                            int nextra_taps = 2)
+std::vector<float> low_pass_filter_taps(float gain, float sampling_rate, float passband_end,
+                                        float stopband_start, float passband_ripple_db = 0.1,
+                                        float stopband_atten_db = 60, int nextra_taps = 2)
 {
+    std::vector<float> taps;
     std::vector<double> frequency_band_edges, magnitudes, max_deviations;
 
     float passband_dev = (std::pow(10, (passband_ripple_db / 20)) - 1) /
@@ -257,9 +262,14 @@ std::vector<float> low_pass(float gain, float samp_rate, float passband_end, flo
     max_deviations.push_back(stopband_dev);
 
     std::vector<double> remez_out =
-        remezord(frequency_band_edges, magnitudes, max_deviations, nextra_taps, samp_rate);
-    std::vector<float> taps = convert_vector_doubles_to_floats(remez_out);
+        remezord(frequency_band_edges, magnitudes, max_deviations, nextra_taps, sampling_rate);
+    taps = convert_vector_doubles_to_floats(remez_out);
 
+    DEBUG_PRINT("passband dev: %5.2f", passband_dev);
+    DEBUG_PRINT("stopband dev: %5.2f", stopband_dev);
+
+    double transition_width = 1e3;
+    taps = gr::filter::firdes::low_pass(gain, sampling_rate, 15e3, transition_width);
     return taps;
 }
 
@@ -269,10 +279,10 @@ std::vector<float> design_filter(int interpolation, int decimation, float fracti
         std::cerr << "Invalid fractional_bandwidth, must be in (0, 0.5)";
     }
 
-    float beta = 7.0;
     float halfband = 0.5;
+    float beta = 7.0;
     float rate = float(interpolation) / float(decimation);
-    float trans_width, mid_transition_band;
+    double trans_width, mid_transition_band;
 
     if (rate >= 1.0) {
         trans_width = halfband - fractional_bw;
@@ -283,13 +293,8 @@ std::vector<float> design_filter(int interpolation, int decimation, float fracti
     }
 
     std::vector<float> taps;
-
     taps = gr::filter::firdes::low_pass(interpolation, interpolation, mid_transition_band,
-                                        trans_width);
-
-    /* taps = low_pass(interpolation, interpolation, mid_transition_band, trans_width, */
-    /*                 filter.firdes."WIN_KAISER", beta); */
-
+                                        trans_width, gr::filter::firdes::WIN_KAISER, beta);
     return taps;
 }
 
@@ -407,6 +412,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
         return ~0;
     };
 
+    sample_rate *= 1e6;
+
     // create a receive streamer
     std::vector<size_t> channel_nums;
     channel_nums.push_back(0);
@@ -414,41 +421,35 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
     stream_args.channels = channel_nums;
     uhd::rx_streamer::sptr rx_stream = usrp_device->get_rx_stream(stream_args);
 
-    float channel_rate = (user_args->sample_rate) / DECI_FACTOR;
-    float k = channel_rate / (2 * M_PI * FM_BROADCAST_DEVIATION);
-
     //---------------------------------------------------------------------------------------------
     //-- GNU Radio blocks
     //---------------------------------------------------------------------------------------------
-
-    // Low pass filter to obtain taps
-    float audio_pass = 15e3;
-    float audio_stop = 16e3;
-    std::vector<float> audio_taps = low_pass(user_args->gain, channel_rate, audio_pass, audio_stop);
 
     // Create top block
     gr::top_block_sptr tb = gr::make_top_block(PROGRAM_NAME);
     gr::uhd::usrp_source::sptr usrp_source =
         gr::uhd::usrp_source::make(user_args->device_addr, stream_args);
-    usrp_source->set_samp_rate(user_args->sample_rate);
+    usrp_source->set_samp_rate(sample_rate);
     usrp_source->set_center_freq(user_args->center_frequency);
 
     // Resample source
-    // std::vector<float> taps;
-    // taps.push_back(1.0);
-    //
-    // gr::filter::rational_resampler_base_ccf::sptr resampler =
-    //     gr::filter::rational_resampler_base_ccf::make(INTERPOL_FACTOR, DECI_FACTOR, taps);
-    // tb->connect(usrp_source, 0, resampler, 0);
+    std::vector<float> resampler_taps = design_filter(INTERPOL_FACTOR, DECI_FACTOR_RR);
+    gr::filter::rational_resampler_base_ccf::sptr resampler =
+        gr::filter::rational_resampler_base_ccf::make(INTERPOL_FACTOR, DECI_FACTOR_RR,
+                                                      resampler_taps);
+    tb->connect(usrp_source, 0, resampler, 0);
 
     // Demodulate quadrature
+    float channel_rate = (sample_rate) / DECI_FACTOR_DEMOD;
+    float k = channel_rate / (2 * M_PI * FM_BROADCAST_DEVIATION);
     gr::analog::quadrature_demod_cf::sptr quad_demod = gr::analog::quadrature_demod_cf::make(k);
-    // tb->connect(resampler, 0, quad_demod, 0);
-    tb->connect(usrp_source, 0, quad_demod, 0);
+    tb->connect(resampler, 0, quad_demod, 0);
 
     // fir_filter_fff
+    std::vector<float> audio_taps =
+        low_pass_filter_taps(gain, AUDIO_CARD_SAMP_RATE, AUDIO_PASS, AUDIO_STOP);
     gr::filter::fir_filter_fff::sptr fir_filter =
-        gr::filter::fir_filter_fff::make(user_args->gain, audio_taps);
+        gr::filter::fir_filter_fff::make(DECI_FACTOR_DEMOD, audio_taps);
     tb->connect(quad_demod, 0, fir_filter, 0);
 
     // audio sink
@@ -461,6 +462,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
     //---------------------------------------------------------------------------------------------
     std::cout << "Starting flow graph" << std::endl;
     tb->start();
+    tb->dump();
 
     std::signal(SIGINT, &sig_int_handler);
     std::cout << "Press Ctrl + C to exit." << std::endl;
