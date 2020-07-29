@@ -68,7 +68,6 @@ class UserArgs
     double sample_rate;
     double output_rate;
     double station;
-    double center_frequency;
     double volume;
     double setup_time;
     double deviation;
@@ -289,7 +288,10 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
     //---------------------------------------------------------------------------------------------
     std::cout << "Starting flow graph" << std::endl;
     tb->start();
-    tb->dump();
+
+    if(DEBUG){
+        tb->dump();
+    }
 
     std::signal(SIGINT, &sig_int_handler);
     std::cout << "Press Ctrl + C to exit." << std::endl;
