@@ -37,11 +37,6 @@
     } while (0)
 #endif
 
-/**
- * copy files over with:
- *   rsync -av --exclude=".git" ../fm_receiver jade@summers:~/vikram/cpp
- */
-
 //--------------------------------------------------------------------------------------------------
 //-- Global Constants
 //--------------------------------------------------------------------------------------------------
@@ -132,7 +127,7 @@ po::options_description set_program_args(std::shared_ptr<UserArgs> user_args)
     desc.add_options()
       ("help",         "help message")
       ("name",         po::value<std::string>(&(user_args->device_addr))
-       		       ->default_value("fm_broadcast_receiver"),
+       		             ->default_value("fm_broadcast_receiver"),
                        "a descriptive name for the program")
       ("station",      po::value<double>(&(user_args->station))->default_value(99.9),
                        "the fm station you wish to tune into")
@@ -141,7 +136,7 @@ po::options_description set_program_args(std::shared_ptr<UserArgs> user_args)
       ("sample-rate",  po::value<double>(&(user_args->sample_rate))->default_value(1e6),
                        "rate of incoming samples")
       ("output-rate",  po::value<double>(&(user_args->output_rate))->default_value(43e3),
-                       "rate at wich samples will be fed to the computer's audio card")
+                       "rate at which samples will be fed to the computer's audio card")
       ("deviation",    po::value<double>(&(user_args->deviation))->default_value(75e3),
                        "fm broadcast deviation")
       ("device",       po::value<std::string>(&(user_args->device_addr))->default_value(""),
@@ -289,7 +284,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
     std::cout << "Starting flow graph" << std::endl;
     tb->start();
 
-    if(DEBUG){
+    if (DEBUG) {
         tb->dump();
     }
 
