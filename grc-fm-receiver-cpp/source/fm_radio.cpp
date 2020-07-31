@@ -1,4 +1,4 @@
-#define _USE_MATH_DEFINES
+#define _use_math_defines
 
 #include <algorithm>
 #include <boost/format.hpp>
@@ -155,9 +155,7 @@ po::options_description set_program_args(std::shared_ptr<UserArgs> user_args)
 int setup_usrp_device(uhd::usrp::multi_usrp::sptr usrp_device, std::shared_ptr<UserArgs> user_args,
                       double *actual_sample_rate, double *actual_gain, po::variables_map vm)
 {
-    //---------------------------------------------------------------------------------------------
-    //-- Instantiate Crimson Device
-    //---------------------------------------------------------------------------------------------
+    // Instantiate Crimson Device
     if (not((user_args->ref_src.compare("internal")) == 0 or
             (user_args->ref_src.compare("external")) == 0 or
             (user_args->ref_src.compare("mimo")) == 0)) {
@@ -172,9 +170,7 @@ int setup_usrp_device(uhd::usrp::multi_usrp::sptr usrp_device, std::shared_ptr<U
               << std::endl;
     usrp_device->set_clock_source(user_args->ref_src);  // lock mboard clocks
 
-    //---------------------------------------------------------------------------------------------
-    //-- Set the Sample Rate
-    //---------------------------------------------------------------------------------------------
+    // Set the Sample Rate
     double desired_sample_rate = user_args->sample_rate;
     if (user_args->sample_rate <= 0.0) {
         std::cerr << boost::format("%s is not a valid sample rate.") % desired_sample_rate
@@ -182,7 +178,6 @@ int setup_usrp_device(uhd::usrp::multi_usrp::sptr usrp_device, std::shared_ptr<U
                   << "Please specify a valid sample rate." << std::endl;
         return ~0;
     }
-
     std::cout << boost::format("Setting RX Rate: %5.2f Msps...") % (desired_sample_rate / 1e6)
               << std::endl;
     usrp_device->set_rx_rate(desired_sample_rate, user_args->channel);
@@ -190,24 +185,20 @@ int setup_usrp_device(uhd::usrp::multi_usrp::sptr usrp_device, std::shared_ptr<U
     std::cout << boost::format("Actual  RX Rate: %f Msps...") % (*actual_sample_rate / 1e6)
               << std::endl;
 
-    //---------------------------------------------------------------------------------------------
-    //-- Set the RF Gain
-    //---------------------------------------------------------------------------------------------
+    // Set the RF Gain
     double desired_gain = user_args->volume * 1e-1;
     std::cout << boost::format("Setting RX Gain: %f dB...") % desired_gain << std::endl;
     usrp_device->set_rx_gain(desired_gain, user_args->channel);
     *actual_gain = usrp_device->get_rx_gain(user_args->channel);
     std::cout << boost::format("Actual  RX Gain: %f dB...") % *actual_gain << std::endl;
 
-    //---------------------------------------------------------------------------------------------
-    //-- Sleep a bit while the slave locks its time to the master
-    //---------------------------------------------------------------------------------------------
+    // Sleep a bit while the slave locks its time to the master
     std::this_thread::sleep_for(std::chrono::seconds(int64_t(user_args->setup_time)));
 
     return 0;
 }
 
-int UHD_SAFE_MAIN(int argc, char *argv[])
+int uhd_safe_main(int argc, char *argv[])
 {
     uhd::set_thread_priority_safe();
 
@@ -239,8 +230,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
     stream_args.channels = channel_nums;
     uhd::rx_streamer::sptr rx_stream = usrp_device->get_rx_stream(stream_args);
 
-    //---------------------------------------------------------------------------------------------
-    //-- GNU Radio blocks
+    // GNU Radio blocks
     //---------------------------------------------------------------------------------------------
 
     // Create top block
@@ -278,9 +268,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
     tb->connect(fir_filter, 0, audio_sink, LEFT_CHANNEL);
     tb->connect(fir_filter, 0, audio_sink, RIGHT_CHANNEL);
 
-    //---------------------------------------------------------------------------------------------
-    //-- poll the exit signal while running
-    //---------------------------------------------------------------------------------------------
+    // poll the exit signal while running
     std::cout << "Starting flow graph" << std::endl;
     tb->start();
 
