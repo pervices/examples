@@ -41,13 +41,13 @@ RUN_TIME_DATE=$(TZ=UTC date "+%F-%H%M%S%N")
 
 #Help Summary;
 function help_summary {
-    echo -e "Usage : ./sdr2disk -n [sfpA &| sfpB &| sfpC &| sfpD] -t [CAPTURE TIME IN SECONDS] -o [FILENAME]\n"
-    echo -e "Any combination of ports can be used seperated by commas, please make sure you have enough storage for the specified capture time, filename will be followed by date and time of run."
+    echo -e "Usage : ./sdr2disk -p [sfpA &| sfpB &| sfpC &| sfpD] -t [CAPTURE TIME IN SECONDS] \n"
+    echo -e "Any combination of ports can be used seperated by commas, please make sure you have enough storage for the specified capture time."
     echo -e "Examples:"
-    echo -e "\t ./sdr2disk.sh -p sfpA,sfpB,sfpC,sfpD -t 10 -o run1\n"
-    echo -e "\t ./sdr2disk.sh -p sfpA,sfpB,sfpD -t 100 -o run2\n"
-    echo -e "\t ./sdr2disk.sh -p sfpC,sfpD -t 500 -o run3\n"
-    echo -e "\t ./sdr2disk.sh -p sfpA -t 1000 -o run4\n"
+    echo -e "\t ./sdr2disk.sh -p sfpA,sfpB,sfpC,sfpD -t 10 \n"
+    echo -e "\t ./sdr2disk.sh -p sfpA,sfpB,sfpD -t 100 \n"
+    echo -e "\t ./sdr2disk.sh -p sfpC,sfpD -t 500 \n"
+    echo -e "\t ./sdr2disk.sh -p sfpA -t 1000 \n"
     exit
 }
 
@@ -68,7 +68,7 @@ if:IsSet() {
 ####
 
 
-while getopts ":hp:t:o:" opt; do
+while getopts ":hp:t:" opt; do
     case $opt in
         p ) echo "Ports = $OPTARG "
             set -f # disable glob
@@ -76,8 +76,6 @@ while getopts ":hp:t:o:" opt; do
             ports_array=($OPTARG) ;; # use the split+glob operator
         t ) echo "Capture Time = $OPTARG" 
             capture_time=$OPTARG;;
-        o ) echo "File prefix = $OPTARG"
-            file_prefix=$OPTARG ;;
         * ) help_summary ;;
     esac
 done
@@ -85,7 +83,7 @@ done
 #Error Checks:
 if:IsSet ports_array || help_summary
 if:IsSet capture_time || help_summary
-if:IsSet file_prefix || help_summary
+#if:IsSet file_prefix || help_summary
 
 for a in "${ports_array[@]}"
 do
@@ -104,27 +102,28 @@ then
     help_summary
 fi
 
-if [[ $file_prefix == "." ]] || [[ $file_prefix == ".." ]]; then
-    # "." and ".." are added automatically and always exist, so you can't have a
-    # file named . or .. //
-    help_summary
-fi
-val=$(echo "${#file_prefix}")
-if [ $val -gt 255 ]; then
-   # String's length check
-   help_summary
-fi
+#if [[ $file_prefix == "." ]] || [[ $file_prefix == ".." ]]; then
+#    # "." and ".." are added automatically and always exist, so you can't have a
+#    # file named . or .. //
+#    help_summary
+#fi
 
-if ! [[ $file_prefix =~ ^[0-9a-zA-Z._-]+$ ]]; then
-    # Checks whether valid characters exist
-    help_summary
-fi
+#val=$(echo "${#file_prefix}")
+#if [ $val -gt 255 ]; then
+#   # String's length check
+#   help_summary
+#fi
 
-_key=$(echo $file_prefix | cut -c1-1)
-if ! [[ $_key =~ ^[0-9a-zA-Z.]+$ ]]; then
-    # Checks the first character
-    help_summary
-fi
+#if ! [[ $file_prefix =~ ^[0-9a-zA-Z._-]+$ ]]; then
+#    # Checks whether valid characters exist
+#    help_summary
+#fi
+
+#_key=$(echo $file_prefix | cut -c1-1)
+#if ! [[ $_key =~ ^[0-9a-zA-Z.]+$ ]]; then
+#    # Checks the first character
+#    help_summary
+#fi
 
 #Run n2disk threads
 #If you want to generate index files add the following flags after 'n2disk', FLAGS= -ZI

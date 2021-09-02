@@ -299,8 +299,16 @@ if found == 1:
 
     print('\n')
 
-
-
+    location           = ''
+    if sys.argv[2] == '10.10.10.10':
+        location = location + '/storage0/storage/'
+    elif sys.argv[2] == '10.10.11.10':
+        location = location + '/storage1/storage/'
+    elif sys.argv[2] == '10.10.12.10':
+        location = location + '/storage2/storage/'
+    else : 
+        location = location + '/storage3/storage/'
+        
     result_dec_flat    = [[],[]]
     result_dec_flat[0] = i_samples_dec
     result_dec_flat[1] = q_samples_dec
@@ -328,7 +336,7 @@ if found == 1:
         #file = open(sys.argv[6]+"-sdr2disk-"+sys.argv[5]+"-"+sys.argv[4]+"-"+sys.argv[3]+"bin_val.txt", "w+")
         file.write("i_samples = " + str(i_samples_bin) + "\nq_samples = " + str(q_samples_bin))
         file.close()
-        shutil.move(sys.argv[6]+"-sdr2disk-"+sys.argv[5]+"-"+sys.argv[4]+"-"+sys.argv[3]+"bin_val.txt", 'bin_val_files')
+        shutil.move(sys.argv[6]+"-sdr2disk-"+sys.argv[5]+"-"+sys.argv[4]+"-"+sys.argv[3]+"bin_val.txt", location + 'bin_val_files')
         #file.write("i_samples = " )
         #for i in len(i_samples_bin):
         #    i -= 1
@@ -352,7 +360,7 @@ if found == 1:
         plt.xlim([0, 5000])
         plt.savefig(sys.argv[6]+"-sdr2disk-"+sys.argv[5]+"-"+sys.argv[4]+"-"+sys.argv[3]+"Figure5000Samples.png", bbox_inches='tight')
         #plt.show()
-        shutil.move(sys.argv[6]+"-sdr2disk-"+sys.argv[5]+"-"+sys.argv[4]+"-"+sys.argv[3]+"Figure5000Samples.png", 'bin_val_files')
+        shutil.move(sys.argv[6]+"-sdr2disk-"+sys.argv[5]+"-"+sys.argv[4]+"-"+sys.argv[3]+"Figure5000Samples.png", location + 'bin_val_files')
         
     else:
         print('Destination IP address not present in the capture.')

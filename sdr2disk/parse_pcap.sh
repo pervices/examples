@@ -44,7 +44,10 @@ declare -a PORTS=(42836 42837 42838 42839 42840 42841 42842 42843)
 declare -a CHANNELS=(A B C D E F G H)
 
 #Creating directory to store binary and graphs
-sudo mkdir -p bin_val_files
+sudo mkdir -p /storage0/storage/bin_val_files
+sudo mkdir -p /storage1/storage/bin_val_files
+sudo mkdir -p /storage2/storage/bin_val_files
+sudo mkdir -p /storage3/storage/bin_val_files
 
 file=$1
 RUN_TIME_DATE=$(TZ=UTC date "+%F-%H%M%S%N")
