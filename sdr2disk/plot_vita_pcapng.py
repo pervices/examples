@@ -1,20 +1,32 @@
 #Created by Renaud Di Bernardo (renaud.d@pervices.com) 2021-07-20
-    #edited by Victoria Sipinkarovski (
 import matplotlib.pyplot as plt
 import sys
-import shutil
-import os
 import binascii
 import socket
 from pcapng import FileScanner
 from pcapng import blocks 
 
+smp_12bit = 0
+if len(sys.argv) != 4 :
+    if len(sys.argv) == 5:
+        if sys.argv[4] == '12bits':
+            smp_12bit = 1
+        else:
+            sys.exit("\n **Error, missing arg : You need to provide : \n\
+                        1. the pcapng file name \n\
+                        2. the Dest IP Address of the packet to filter\n\
+                        3. its UDP Dest port! \n\
+                        4. '12bits' if samples are 12 bits (optional)\n")
+    else:
+        sys.exit("\n **Error, missing arg : You need to provide : \n\
+                    1. the pcapng file name \n\
+                    2. the Dest IP Address of the packet to filter\n\
+                    3. its UDP Dest port! \n\
+                    4. '12bits' if samples are 12 bits (optional)\n")
 
-if len(sys.argv) != 7 :
-    sys.exit("\n **Error, missing arg : You need to provide : \n\
-                1. the pcapng file name \n\
-                2. the Dest IP Address of the packet to filter\n\
-                3. its UDP Dest port! \n")
+
+
+
 
 if '.pcapng' in str(sys.argv[1]):
     pass
@@ -116,8 +128,6 @@ def twos_complement(hexstr,bits):
     return value
 
 
-
-
 ################## Pcapng to Enhanced Packets
 def get_pacpng_packet_blocks(filename):
     """
@@ -179,12 +189,9 @@ def get_vita_packet(udp_packet):
 
 
 #Get the EnhancedPacket blocks from the file passed in Arg
-#pbs = get_pacpng_packet_blocks('./'+str(sys.argv[1]))
-pbs = get_pacpng_packet_blocks(str(sys.argv[1]))
+pbs = get_pacpng_packet_blocks('./'+str(sys.argv[1]))
 num_total_pkts=len(pbs)
 print("Number of packets in the file: ",num_total_pkts)
-print('\n')
-print("This will take up more time if there are alot of packets")
 print('\n')
 # 128 bits interface : 16 bytes :
 #flags =      [6:3]  2   1    0
@@ -195,18 +202,57 @@ print('\n')
 #flags =      [5:3]  2   1    0
 #flags = EMPTY[2:0] EOP SOP VALID
 # EMPTY[2:0] : 8 values that specify how many bytes (8 bytes = 64bits) are not valid
-
-addr=0
 found=0
-flag_valid = 1
-flag_valid_sop = 3
-flag_valid_eop_zeroempty = 5
 
-entire_16bytes_lines =0
-relicats =  0
+def convert_16b_to_12b(block_of_16bits):
+#this function doesn't really convert 16b to 12b, but read 12bits samples packed
+#into 16bits blocks, and re write them to 16bits blocks, but with correct mapping
+    #print("in function")
+    #print(len(block_of_16bits))
+    s = ""
+    for i in range(len(block_of_16bits)):
+        snew = format(block_of_16bits[i], '02x')
+        #print("s["+str(i)+"] = "+str(snew))
+        s = s + str(snew)
+    #at this point we have a string of the whole packet
+
+    sbin =""
+    #convert to binary:
+    for i in range(len(s)):
+        sformattedbin = format(int(s[i],16), '04b')
+        sbin = sbin   + format(int(s[i],16), '04b')
+    #at this point we have a string of the whole packet in binary
+
+    #Now read 12bits by 12bits and pack them into 16bits blocks
+    lensur12 = int(len(sbin)/12)
+    s_formatted = []
+    for i in range(lensur12):
+        this_block = sbin[i*12:i*12+12]
+        this_block_int = int(this_block,2)
+        this_block_hex = format(this_block_int, '04x')
+        this_block_hex_0 = int(this_block_hex[1:2],16) #only last significant digit is not 0
+        if (this_block_hex_0 > 7) : #negative number, pad one's
+            this_block_hex_0_signed = this_block_hex_0 + 240
+        else:
+            this_block_hex_0_signed = this_block_hex_0
+
+        this_block_hex_1 = int(this_block_hex[2:4],16)
+        #print('function0: '+ str(this_block_hex_0))
+        #print('function0_signed: '+ str(this_block_hex_0_signed))
+        #print('function1: '+ str(this_block_hex_1))
+        s_formatted.append(this_block_hex_0_signed)
+        s_formatted.append(this_block_hex_1)
+        #s_formatted.append(this_block_int)
+        #if i > 8:
+        #    sys.exit("\n **endtest \n")
+
+    return s_formatted
+
+
+error_sid = 0
+error_seqnum = 0
 current_pkt = 0
 pkt=0
-last_line = " "
 decade=0
 stream_id = 0
 old_seq_num = 0
@@ -214,159 +260,142 @@ new_seq_num = 0
 i_samples = []
 q_samples = []
 i = 0
+val = 'o'
+max_packets = 0
+while (val != 'y') and (val != 'n'):
+    val = input("Would you like to process all the packets ? y or n \n")
+    if val == 'y':
+        max_packets = num_total_pkts
+        break
+    else :
+        mx_packets = input("How many packets would you like to process ? (must be an int) \n")
+        while not (mx_packets.isdigit() and int(mx_packets) > 0):
+            mx_packets = input("How many packets would you like to process ? (must be an int) \n")
+        max_packets = int(mx_packets)
+
+swp = 'o'
+swap = 0
+while (swp != 'y') and (swp != 'n'):
+    swp = input("swap bytes of each samples ? y or n \n")
+if (swp == 'y'):
+    swap = 1
+else:
+    swap = 0
+
 for pb in pbs: #For each block in all the packet blocks.
     #Get the ethernet frame from the Packet blocks:
-    #print("in for loop")
     eth_frame = get_eth_frame(pb)
-    if eth_frame: #If this block happens to be an Ethernet frame
+    if (pkt < max_packets) and eth_frame: #If this block happens to be an Ethernet frame
         ipv4_pkt = get_ipv4_packet(eth_frame)
         if ipv4_pkt: #If this Eth Frame happens to be an IPv4 packet (IPV6 not supported yet!)
             if socket.inet_ntoa(ipv4_pkt.dst_ip) == sys.argv[2]: #If this IPv4 pkt IP Destination matches what the user wants
                 udp_pkt = get_udp_packet(ipv4_pkt)
-                #print ("udp port = " + str(int(binascii.hexlify(udp_pkt.dst_port), 16)))
-                #print("in get udp pkt")
-                if udp_pkt and str(int(binascii.hexlify(udp_pkt.dst_port), 16)) == sys.argv[3]: #If the IPv4 pkt is a UDP packet and UDP Destmatches what the user wants, this is a packet we are looking for!
+                if udp_pkt and str(int(binascii.hexlify(udp_pkt.dst_port), 16)) == sys.argv[3]: #If the IPv4 pkt is a UDP packet and UDP Dest matches what the user wants, this is a packet we are looking for!
                     found = 1
                     vita_pkt = get_vita_packet(udp_pkt)
-                    #print("in udp pky if")
                     if pkt == 0:
                         stream_id = vita_pkt.str_id
-                        print("stream ID = "+str(int(binascii.hexlify(stream_id), 16)))
+                        #print("stream ID = "+str(int(binascii.hexlify(stream_id), 16)))
                         new_seq_num = vita_pkt.seq_num
                     else:
                         if not vita_pkt.str_id == stream_id:
                             print("ERROR, stream ids don't match, pkt= " + str(pkt))
+                            error_sid = error_sid +1
                         old_seq_num = new_seq_num
                         new_seq_num = vita_pkt.seq_num
                         if not (old_seq_num+1) == new_seq_num:
                             if not ((old_seq_num == 15) and (new_seq_num == 0)):
                                 print("ERROR, SEQ NUM not incremented, old = "+ str(old_seq_num) + " new = " +str(new_seq_num))
                                 print("ERROR, pkt= " + str(pkt))
+                                error_seqnum = error_seqnum +1
 
-                    s=vita_pkt.data 
+                    a=vita_pkt.data 
+                    #print(a)
+                    if (smp_12bit == 1):
+                        #this function doesn't really convert 16b to 12b, but read 12bits samples packed
+                        #into 16bits blocks, and re write them to 16bits blocks, but with correct mapping
+                        s = convert_16b_to_12b(a)
+                    else:
+                        s = a
                     if vita_pkt.trailer_inc == 1:
                         length = vita_pkt.payload_length_byte - 4
                     else:
                         length = vita_pkt.payload_length_byte
                     #print('length = '+str(length))
                     i = 0
-                    while i in range (length):
-                        i_sample = str(hex(s[i+0]))[2:]+str(hex(s[i+1]))[2:]
-                        q_sample = str(hex(s[i+2]))[2:]+str(hex(s[i+3]))[2:]
+                    while i in range(length):
+                        if (swap == 1):
+                            i_sample = str(hex(s[i+1]))[2:]+str(hex(s[i+0]))[2:]
+                            q_sample = str(hex(s[i+3]))[2:]+str(hex(s[i+2]))[2:]
+                        else:
+                            #i_sample = str(hex(s[i+0]))[2:]+str(hex(s[i+1]))[2:]
+                            #q_sample = str(hex(s[i+2]))[2:]+str(hex(s[i+3]))[2:]
+                            i_sample = format(s[i+0], '02x')+ format(s[i+1], '02x')
+                            q_sample = format(s[i+2], '02x')+ format(s[i+3], '02x')
                         #print(i_sample + ' '  + q_sample)
+
                         i_samples.append(i_sample)
                         q_samples.append(q_sample)
                         i=i+4
                         #print("found")
                     pkt = pkt+1
                     # Loading-like bar (tells you that the script is not stuck):
-
-                
-    #if current_pkt%(num_total_pkts//20) == 0 and found == 1:
-    #    decade=current_pkt//(num_total_pkts//20)
-    #    sys.stdout.write('\r')
-    #    sys.stdout.write("[%-20s] %d%%" %('='*decade, 5*decade))
-    #    sys.stdout.flush
+    if max_packets > 19 :
+        if current_pkt%(num_total_pkts//20) == 0:
+            decade=current_pkt//(num_total_pkts//20)
+            sys.stdout.write('\r')
+            sys.stdout.write("[%-20s] %d%%" %('='*decade, 5*decade))
+            sys.stdout.flush
     #current_pkt refers here to the actual current packet being processed from all the packets (even if the user doesn't want this one)
     #So the loading bar tells you where you are in the pcapng file.
     current_pkt = current_pkt + 1
 
 print("")
+print("stream ID = "+str(int(binascii.hexlify(stream_id), 16)))
+i_samples_dec = []
+for x in range(len(i_samples)):
+    i_samples_dec.append(twos_complement(i_samples[x],16))
+
+q_samples_dec = []
+for y in range(len(q_samples)):
+    q_samples_dec.append(twos_complement(q_samples[y],16))
+
+#print(i_samples)
+#print(" ")
+#print(i_samples_dec)
+
+print('\n')
+
+
+
+result_dec_flat    = [[],[]]
+result_dec_flat[0] = i_samples_dec
+result_dec_flat[1] = q_samples_dec
+label_result       = [[],[]]
+label_result[0]    = 'I'
+label_result[1]    = 'Q'
+
+fig, axs = plt.subplots(2, sharex=True, sharey=False, gridspec_kw={'hspace': 0})   
+fig.suptitle('VITA Packet analyzed')
+
+index = 0
+for ax in axs.flat:
+    ax.set(xlabel='Sample', ylabel='Level')
+#    ax.title.set_text(' ' + str(index))
+    ax.plot(result_dec_flat[index], linestyle = 'solid', linewidth = 0.9, color = 'blue', label = label_result[index]) 
+    ax.legend(loc="upper right")
+    index = index+1
+
+val = 'o'
 if found == 1: 
-    print("stream ID = "+str(int(binascii.hexlify(stream_id), 16)))
-    i_samples_dec = []
-    for x in range(len(i_samples)):
-        i_samples_dec.append(twos_complement(i_samples[x],16))
-
-    q_samples_dec = []
-    for y in range(len(q_samples)):
-        q_samples_dec.append(twos_complement(q_samples[y],16))
-        
-    i_samples_bin = []
-    for w in range(len(i_samples_dec)):
-        temp = "{0:b}".format(i_samples_dec[w])
-        i_samples_bin.append(temp)
-        
-    q_samples_bin = []
-    for z in range(len(q_samples_dec)):
-        temp = "{0:b}".format(q_samples_dec[w])
-        q_samples_bin.append(temp)
-
-    #print(i_samples_dec)
-
-    #Write binary data into files
-
-
-    print('\n')
-
-    location           = ''
-    if sys.argv[2] == '10.10.10.10':
-        location = location + '/storage0/storage/'
-    elif sys.argv[2] == '10.10.11.10':
-        location = location + '/storage1/storage/'
-    elif sys.argv[2] == '10.10.12.10':
-        location = location + '/storage2/storage/'
-    else : 
-        location = location + '/storage3/storage/'
-        
-    result_dec_flat    = [[],[]]
-    result_dec_flat[0] = i_samples_dec
-    result_dec_flat[1] = q_samples_dec
-    label_result       = [[],[]]
-    label_result[0]    = 'I'
-    label_result[1]    = 'Q'
-    
-    temp = sys.argv[1]
-    temp2 = temp.replace(".pcapng", "", 1)
-
-    fig, axs = plt.subplots(2, sharex=True, sharey=False, gridspec_kw={'hspace': 0})   
-    fig.suptitle('VITA Packet analyzed: '+sys.argv[6]+"-sdr2disk-"+sys.argv[5]+"-"+sys.argv[4]+"-"+sys.argv[3])
-
-    index = 0
-    for ax in axs.flat:
-        ax.set(xlabel='Sample', ylabel='Level')
-    #    ax.title.set_text(' ' + str(index))
-        ax.plot(result_dec_flat[index], linestyle = 'solid', linewidth = 0.9, color = 'blue', label = label_result[index]) 
-        ax.legend(loc="upper right")
-        index = index+1
-
-    if found == 1:
-        print("Saving binary values into files")
-        file = open(sys.argv[6]+"-sdr2disk-"+sys.argv[5]+"-"+sys.argv[4]+"-"+sys.argv[3]+"bin_val.txt", "w+")
-        #file = open(sys.argv[6]+"-sdr2disk-"+sys.argv[5]+"-"+sys.argv[4]+"-"+sys.argv[3]+"bin_val.txt", "w+")
-        file.write("i_samples = " + str(i_samples_bin) + "\nq_samples = " + str(q_samples_bin))
-        file.close()
-        shutil.move(sys.argv[6]+"-sdr2disk-"+sys.argv[5]+"-"+sys.argv[4]+"-"+sys.argv[3]+"bin_val.txt", location + 'bin_val_files')
-        #file.write("i_samples = " )
-        #for i in len(i_samples_bin):
-        #    i -= 1
-        #    file.write(str(i_samples_bin[i])
-        #    file.write("\n")
-        #file.write("\nq_samples = ")
-        #for y in len(q_samples_bin):
-        #    y -= 1
-        #    file.write(str(q_samples_bin[y])
-        #    file.write("\n")
-        #file.close()
-        #shutil.move(sys.argv[6]+"-sdr2disk-"+sys.argv[5]+"-"+sys.argv[4]+"-"+sys.argv[3]+"bin_val.txt", 'bin_val_files')
-
-    #val = 'o'
-    if found == 1: 
-        print('Found '+ str(pkt) +' packets in the capture. Done.')
-        #while (val != 'y') and (val != 'n'):
-            #val = input("Would you like to see the graph? y or n \n")
-            #if val == 'y':
-        print("Will graph the first 5000 samples")
-        plt.xlim([0, 5000])
-        plt.savefig(sys.argv[6]+"-sdr2disk-"+sys.argv[5]+"-"+sys.argv[4]+"-"+sys.argv[3]+"Figure5000Samples.png", bbox_inches='tight')
-        #plt.show()
-        shutil.move(sys.argv[6]+"-sdr2disk-"+sys.argv[5]+"-"+sys.argv[4]+"-"+sys.argv[3]+"Figure5000Samples.png", location + 'bin_val_files')
-        
-    else:
-        print('Destination IP address not present in the capture.')
+    print('Found '+ str(pkt) +' packets in the capture. Done.')
+#    if not (error_sid == 0) 
+    while (val != 'y') and (val != 'n'):
+        val = input("Would you like to see the graph? y or n \n")
+        if val == 'y':
+            plt.show()
 else:
-    print("No UDP packet with given port number: "+ sys.argv[3] +" and address: " + sys.argv[2])
-
-print("Done! Please wait a few moments for this section to end")
+    print('Destination IP address not present in the capture.')
 
 
+print("Done!")
