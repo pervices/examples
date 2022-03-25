@@ -1,0 +1,11 @@
+Plots data from a vita packet
+
+To use:
+1. Begin recording the sfp ports in Wireshark (IPs 10.10.10.10, 10.10.11.10, 10.10.12.10, 10.10.13.10 for most units)
+2. Begin streaming data from the unit. Can be done using many method
+2.1 Example: go to UHD's example folder and run ./rx_start --rate 3000000000 --lo-freq 0 --dsp-freq 0 --gain 30 --channels 0,1,3,4
+2.2 If using rx_start, run ./rx_stop when you are finished
+3. Save the data recorded in Wireshark
+4. In the folder containing plot_vita_pcapng.py, run the command: python plot_vita_pcapng.py <path to Wireshark capture> <Destination IP of desired channel> <Destination UDP port of desired channel> <If using 3Gspsp version: 12bits>
+4.1 For variants with 4 receive channels the desintation IP (in order) will be 10.10.10.10, 10.10.11.10, 10.10.12.10, 10.10.13.10
+4.2 For variants with 4 receive channels the destination UDP port is 4936, 4937, 4938, 4939
