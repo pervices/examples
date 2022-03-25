@@ -1,0 +1,17 @@
+To use file_plot:
+
+1. Open in GNU Radio
+2.1 Select the appropriate file in the "file" field of each File Source (Each one must have a valid file selected)
+2.2 For 3G Cyan only: if you are using low band change swap in the IShort To Complex blocks to yes
+3. Set samp_rate and num_sampes_to_plot to the desired values
+4. Run
+
+This program expects a binary file containing 16 bit signed complex values. rx_samples_to_file and txrx_trigger_loopback are both capable of creating these types of files.
+
+Sample command for rx_samples_to_file for units other than 3Gsps variants:
+./rx_samples_to_file --rate 3000000000 --freq 0 --gain 30
+Sample for 3Gsps variants:
+./rx_samples_to_file --rate 3000000000 --freq 0 --gain 30 --wirefmt sc12
+
+txrx_trigger_loopback examples call (3Gsps variants only at time of writing, will be supported for other versions later)
+./txrx_trigger_loopback --rate 3000000000 --freq 0 --rx_only --samples_per_trigger 29440 --results_dir results3 --rx_gain 30 --channels 0,1,2,3 --num_trigger 3
