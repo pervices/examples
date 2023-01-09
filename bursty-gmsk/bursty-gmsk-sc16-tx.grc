@@ -11,7 +11,7 @@ options:
     gen_linking: dynamic
     generate_options: qt_gui
     hier_block_src_path: '.:'
-    id: untitled
+    id: bursty_gmsk_sc16_tx
     max_nouts: '0'
     output_language: python
     placement: (0,0)
@@ -22,7 +22,7 @@ options:
     run_options: prompt
     sizing_mode: fixed
     thread_safe_setters: ''
-    title: Not titled yet
+    title: Bursty GMSK operation.
     window_size: (1000,1000)
   states:
     bus_sink: false
@@ -65,7 +65,9 @@ blocks:
     label: Amp Sel
     min_len: '200'
     orient: QtCore.Qt.Horizontal
+    outputmsgname: value
     rangeType: float
+    showports: 'False'
     start: '0'
     step: '100'
     stop: '32000'
@@ -122,7 +124,9 @@ blocks:
     label: Freq Sel
     min_len: '2000'
     orient: QtCore.Qt.Horizontal
+    outputmsgname: value
     rangeType: float
+    showports: 'False'
     start: -samp_rate/2
     step: '1000'
     stop: samp_rate/2
