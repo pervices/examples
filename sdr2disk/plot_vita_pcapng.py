@@ -36,6 +36,16 @@ else:
 #########################
 ######## CLASSES ########
 #########################
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 class EthernetFrame():
     def __init__(self, packet_bytes):
@@ -99,18 +109,34 @@ class VITA_Packet():
         self.frts_type   = (data[1] & 48) >> 4
         self.seq_num     = (data[1] & 15)
         self.length      = (data[2:4]   ) 
-        self.str_id      = (data[4:8]   )
-        self.frac_ts     = (data[8:16]  )
+        
+        self.stream_id_included      =  (self.pkt_type  == 1)
+        self.frac_timestamp_included = ((self.frts_type == 3) or (self.frts_type == 1))
+        if (self.stream_id_included == 1):
+            self.str_id      = (data[4:8]   )
+            data_start       = 8
+            if (self.frac_timestamp_included == 1) :
+                self.frac_ts     = (data[8:16]  )
+                data_start       = 16
+        else:
+            data_start       = 4
+            if (self.frac_timestamp_included == 1) :
+                self.frac_ts     = (data[4:12]  )
+                data_start       = 12
 
-        header_length_byte  = 4+4+8
-        #print(str(int(binascii.hexlify(self.length), 16)))
+        #Calculate header length based on what header fields are included or not :
+        VRT_LENGTH              = 4;
+        STREAM_ID_LENGTH        = 4*self.stream_id_included;
+        FRAC_TIMESTAMP_LENGTH   = 8*self.frac_timestamp_included;
+        header_length_byte  = VRT_LENGTH + STREAM_ID_LENGTH + FRAC_TIMESTAMP_LENGTH
+        #Payload length in bytes :
         payload_length_byte = (int(binascii.hexlify(self.length), 16)) * 4 - header_length_byte
         self.payload_length_byte = payload_length_byte
         if (self.trailer_inc == 1):
-            self.data      = (data[16:16+payload_length_byte-4])
-            self.trailer   = (data[16+payload_length_byte-4:16+payload_length_byte])
+            self.data      = (data[data_start:data_start+payload_length_byte-4])
+            self.trailer   = (data[data_start+payload_length_byte-4:data_start+payload_length_byte])
         else:
-            self.data      = (data[16:16+payload_length_byte-1])
+            self.data      = (data[data_start:data_start+payload_length_byte])
 
     def __str__(self):
         return 'VITA Packet:\nstr_id: {}\t or: 0x{}\nLength: {}     or: 0x{}\n'.format(self.str_id, binascii.hexlify(self.str_id).decode('ascii'), self.length, binascii.hexlify(self.length).decode('ascii'))
@@ -180,7 +206,7 @@ def get_udp_packet(ipv4_packet):
 ################## UPD Packet to VITA-49 Packet
 def get_vita_packet(udp_packet):
     #Check that the UDP packet has type
-    if not str(int(binascii.hexlify(udp_pkt.dst_port), 16)) == sys.argv[3]: #17 = UDP     01 = ICMP       06 = TCP  TODO CHANGE THAT
+    if not str(int(binascii.hexlify(udp_pkt.dst_port), 16)) == sys.argv[3]: #Keep only VITA49 Packets that match the destination port chosen by the user.
         print("bad dst-port = "+ str(int(binascii.hexlify(udp_pkt.dst_port), 16)))
         return None
 
@@ -254,35 +280,48 @@ error_seqnum = 0
 current_pkt = 0
 pkt=0
 decade=0
+skip_stream_id = 1
 stream_id = 0
 old_seq_num = 0
 new_seq_num = 0
 i_samples = []
 q_samples = []
+
+i_samples_per_pkt = []
+q_samples_per_pkt = []
 i = 0
 val = 'o'
 max_packets = 0
+circle = 0
 while (val != 'y') and (val != 'n'):
-    val = input("Would you like to process all the packets ? y or n \n")
-    if val == 'y':
+    val = input("Would you like to circle through all the packets 1 by 1 ? y or n \n")
+    if (val == 'n'):
+        val = 'o'
+        while (val != 'y') and (val != 'n'):
+            val = input("Would you like to process all the packets ? y or n \n")
+            if val == 'y':
+                max_packets = num_total_pkts
+                break
+            elif val == 'n' :
+                mx_packets = input("How many packets would you like to process ? (must be an int) \n")
+                while not (mx_packets.isdigit() and int(mx_packets) > 0):
+                    mx_packets = input("How many packets would you like to process ? (must be an int) \n")
+                max_packets = int(mx_packets)
+    elif (val == 'y'):
         max_packets = num_total_pkts
-        break
-    else :
-        mx_packets = input("How many packets would you like to process ? (must be an int) \n")
-        while not (mx_packets.isdigit() and int(mx_packets) > 0):
-            mx_packets = input("How many packets would you like to process ? (must be an int) \n")
-        max_packets = int(mx_packets)
+        print('Going to cicle through all the packets one by one and display all the graphs')
+        circle = 1
 
 swp = 'o'
 swap = 0
-while (swp != 'y') and (swp != 'n'):
-    swp = input("swap bytes of each samples ? y or n \n")
-if (swp == 'y'):
-    swap = 1
-else:
-    swap = 0
+#while (swp != 'y') and (swp != 'n'):
+#    swp = input("swap bytes of each samples ? y or n \n")
+#if (swp == 'y'):
+#    swap = 1
+#else:
+#    swap = 0
 
-for pb in pbs: #For each block in all the packet blocks.
+for pb in pbs: #For each block in all the packet blocks. (each packet)
     #Get the ethernet frame from the Packet blocks:
     eth_frame = get_eth_frame(pb)
     if (pkt < max_packets) and eth_frame: #If this block happens to be an Ethernet frame
@@ -293,51 +332,64 @@ for pb in pbs: #For each block in all the packet blocks.
                 if udp_pkt and str(int(binascii.hexlify(udp_pkt.dst_port), 16)) == sys.argv[3]: #If the IPv4 pkt is a UDP packet and UDP Dest matches what the user wants, this is a packet we are looking for!
                     found = 1
                     vita_pkt = get_vita_packet(udp_pkt)
+                    this_isample = []
+                    this_qsample = []
                     if pkt == 0:
-                        stream_id = vita_pkt.str_id
+                        if vita_pkt.stream_id_included:
+                            stream_id = vita_pkt.str_id
+                            skip_stream_id = 0
                         #print("stream ID = "+str(int(binascii.hexlify(stream_id), 16)))
                         new_seq_num = vita_pkt.seq_num
                     else:
-                        if not vita_pkt.str_id == stream_id:
-                            print("ERROR, stream ids don't match, pkt= " + str(pkt))
+                        if (vita_pkt.stream_id_included) and (not vita_pkt.str_id == stream_id):
+                            print(bcolors.BOLD + bcolors.FAIL + "     **ERROR** " + bcolors.ENDC + bcolors.FAIL + " STREAM IDs don't match" + bcolors.ENDC + " At " + bcolors.UNDERLINE + "packet "  + str(pkt) + bcolors.ENDC )
                             error_sid = error_sid +1
                         old_seq_num = new_seq_num
                         new_seq_num = vita_pkt.seq_num
                         if not (old_seq_num+1) == new_seq_num:
                             if not ((old_seq_num == 15) and (new_seq_num == 0)):
-                                print("ERROR, SEQ NUM not incremented, old = "+ str(old_seq_num) + " new = " +str(new_seq_num))
-                                print("ERROR, pkt= " + str(pkt))
+                                sys.stdout.write('\r')
+                                num_dropped_pkt = (new_seq_num - old_seq_num) % 15
+                                print(bcolors.BOLD + bcolors.FAIL + "     **ERROR** " + bcolors.ENDC + bcolors.FAIL + " SEQ NUM not incremented by 1." + bcolors.ENDC + " At " + bcolors.UNDERLINE + "packet "  + str(pkt) + bcolors.ENDC + " Seq_Num goes From "+ str(old_seq_num) + " to " +str(new_seq_num) \
+                                    + '. It looks like ' + str(num_dropped_pkt) + ' packets were dropped ?')
                                 error_seqnum = error_seqnum +1
 
                     a=vita_pkt.data 
                     #print(a)
-                    if (smp_12bit == 1):
-                        #this function doesn't really convert 16b to 12b, but read 12bits samples packed
-                        #into 16bits blocks, and re write them to 16bits blocks, but with correct mapping
-                        s = convert_16b_to_12b(a)
-                    else:
-                        s = a
                     if vita_pkt.trailer_inc == 1:
                         length = vita_pkt.payload_length_byte - 4
                     else:
                         length = vita_pkt.payload_length_byte
                     #print('length = '+str(length))
+                    if (smp_12bit == 1):
+                        #this function doesn't really convert 16b to 12b, but read 12bits samples packed
+                        #into 16bits blocks, and re write them to 16bits blocks, but with correct mapping
+                        s = convert_16b_to_12b(a)
+                        #Each 12-bit block is converted into a 16-bit block
+                        #So each 2*12-bit blocks (24b = 3 bytes) is converted into a 2*16-bit block (32b = 4 bytes) 
+                        length = int(length / 3) * 4
+                    else:
+                        s = a
+ 
                     i = 0
                     while i in range(length):
                         if (swap == 1):
                             i_sample = str(hex(s[i+1]))[2:]+str(hex(s[i+0]))[2:]
                             q_sample = str(hex(s[i+3]))[2:]+str(hex(s[i+2]))[2:]
                         else:
-                            #i_sample = str(hex(s[i+0]))[2:]+str(hex(s[i+1]))[2:]
-                            #q_sample = str(hex(s[i+2]))[2:]+str(hex(s[i+3]))[2:]
                             i_sample = format(s[i+0], '02x')+ format(s[i+1], '02x')
                             q_sample = format(s[i+2], '02x')+ format(s[i+3], '02x')
                         #print(i_sample + ' '  + q_sample)
 
+                        this_isample.append(i_sample)
+                        this_qsample.append(q_sample)
                         i_samples.append(i_sample)
                         q_samples.append(q_sample)
                         i=i+4
                         #print("found")
+
+                    i_samples_per_pkt.append(this_isample)
+                    q_samples_per_pkt.append(this_qsample)
                     pkt = pkt+1
                     # Loading-like bar (tells you that the script is not stuck):
     if max_packets > 19 :
@@ -350,52 +402,114 @@ for pb in pbs: #For each block in all the packet blocks.
     #So the loading bar tells you where you are in the pcapng file.
     current_pkt = current_pkt + 1
 
-print("")
-print("stream ID = "+str(int(binascii.hexlify(stream_id), 16)))
-i_samples_dec = []
-for x in range(len(i_samples)):
-    i_samples_dec.append(twos_complement(i_samples[x],16))
-
-q_samples_dec = []
-for y in range(len(q_samples)):
-    q_samples_dec.append(twos_complement(q_samples[y],16))
-
-#print(i_samples)
-#print(" ")
-#print(i_samples_dec)
-
-print('\n')
-
-
-
-result_dec_flat    = [[],[]]
-result_dec_flat[0] = i_samples_dec
-result_dec_flat[1] = q_samples_dec
-label_result       = [[],[]]
-label_result[0]    = 'I'
-label_result[1]    = 'Q'
-
-fig, axs = plt.subplots(2, sharex=True, sharey=False, gridspec_kw={'hspace': 0})   
-fig.suptitle('VITA Packet analyzed')
-
-index = 0
-for ax in axs.flat:
-    ax.set(xlabel='Sample', ylabel='Level')
-#    ax.title.set_text(' ' + str(index))
-    ax.plot(result_dec_flat[index], linestyle = 'solid', linewidth = 0.9, color = 'blue', label = label_result[index]) 
-    ax.legend(loc="upper right")
-    index = index+1
-
-val = 'o'
+sys.stdout.write('\r')
 if found == 1: 
     print('Found '+ str(pkt) +' packets in the capture. Done.')
-#    if not (error_sid == 0) 
+else:
+    sys.exit('Destination IP address and port combination not present in the capture.')
+
+if (circle == 1):
+    pltpkt = 0
+    for z in range(max_packets):
+
+        #print("stream ID = "+str(int(binascii.hexlify(stream_id), 16)))
+        i_samples_dec = []
+        for x in range(len(i_samples_per_pkt[z])):
+            i_samples_dec.append(twos_complement(i_samples_per_pkt[z][x],16))
+
+        q_samples_dec = []
+        for y in range(len(q_samples_per_pkt[z])):
+            q_samples_dec.append(twos_complement(q_samples_per_pkt[z][y],16))
+        
+        #print(i_samples_dec)
+        #print(" ")
+        #print(q_samples_dec)
+
+        #print('\n')
+
+        result_dec_flat    = [[],[]]
+        result_dec_flat[0] = i_samples_dec
+        result_dec_flat[1] = q_samples_dec
+        label_result       = [[],[]]
+        label_result[0]    = 'I'
+        label_result[1]    = 'Q'
+        
+        fig, axs = plt.subplots(2, sharex=True, sharey=False, gridspec_kw={'hspace': 0})   
+        fig.suptitle('VITA Packet #' +str(pltpkt) )
+        
+        index = 0
+        for ax in axs.flat:
+            ax.set(xlabel='Sample', ylabel='Level')
+        #    ax.title.set_text(' ' + str(index))
+            ax.plot(result_dec_flat[index], linestyle = 'solid', linewidth = 0.9, color = 'blue', label = label_result[index]) 
+            ax.legend(loc="upper right")
+            index = index+1
+
+        pltpkt = pltpkt+1
+        plt.show()
+        val = 'o'
+        while (val != 'y') and (val != 'n'):
+            val = input("Would you like to see next packet ? y or n \n")
+            if val == 'y':
+                print("Processing next packet")
+            elif val == 'n':
+                sys.exit('Done.')
+                        
+else:
+
+    x7ff  = []
+    x800  = []
+    x7fff = []
+    x8000 = []
+
+    if skip_stream_id == 0:
+        print("stream ID = "+str(int(binascii.hexlify(stream_id), 16)))
+    i_samples_dec = []
+    print("number of samples = " + str(len(i_samples)))
+    for x in range(len(i_samples)):
+        i_samples_dec.append(twos_complement(i_samples[x],16))
+        x7ff.append(2047)
+        x800.append(-2048)
+        x7fff.append(32767)
+        x8000.append(-32768)
+    
+    #print(i_samples_dec)
+
+    q_samples_dec = []
+    for y in range(len(q_samples)):
+        q_samples_dec.append(twos_complement(q_samples[y],16))
+    
+    print('\n')
+
+    result_dec_flat    = [[],[]]
+    result_dec_flat[0] = i_samples_dec
+    result_dec_flat[1] = q_samples_dec
+    label_result       = [[],[]]
+    label_result[0]    = 'I'
+    label_result[1]    = 'Q'
+    
+    fig, axs = plt.subplots(2, sharex=True, sharey=False, gridspec_kw={'hspace': 0})   
+    fig.suptitle('VITA Packet analyzed')
+    
+    index = 0
+    for ax in axs.flat:
+        ax.set(xlabel='Sample', ylabel='Level')
+    #    ax.title.set_text(' ' + str(index))
+        ax.plot(result_dec_flat[index], linestyle = 'solid', linewidth = 0.9, color = 'blue', label = label_result[index]) 
+        if (smp_12bit == 1):
+            ax.plot(x7ff, linestyle = 'dashed', linewidth = 0.5, color = 'green', label = 'Max (0x7FF)') 
+            ax.plot(x800, linestyle = 'dashed', linewidth = 0.5, color = 'red', label = 'Min (0x800)') 
+        else:
+            ax.plot(x7fff, linestyle = 'dashed', linewidth = 0.5, color = 'green', label = 'Max (0x7FFF)') 
+            ax.plot(x8000, linestyle = 'dashed', linewidth = 0.5, color = 'red', label = 'Min (0x8000)') 
+        ax.legend(loc="upper right")
+        index = index+1
+    
+    val = 'o'
+
     while (val != 'y') and (val != 'n'):
         val = input("Would you like to see the graph? y or n \n")
         if val == 'y':
             plt.show()
-else:
-    print('Destination IP address not present in the capture.')
-
-
+  
 print("Done!")
