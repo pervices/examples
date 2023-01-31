@@ -215,7 +215,7 @@ def get_vita_packet(udp_packet):
 
 
 #Get the EnhancedPacket blocks from the file passed in Arg
-pbs = get_pacpng_packet_blocks('./'+str(sys.argv[1]))
+pbs = get_pacpng_packet_blocks(str(sys.argv[1]))
 num_total_pkts=len(pbs)
 print("Number of packets in the file: ",num_total_pkts)
 print('\n')

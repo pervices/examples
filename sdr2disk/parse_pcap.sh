@@ -5,31 +5,20 @@ shopt -s globstar
 function help_sum {
     echo -e "Missing arg, please provide; "
     echo -e "\t1. Pcap or Pcapng file ( Provide complete location ie: /storage0/storage/1629230682.356592/1629230684.105763.pcap )"
-    echo -e "\t2. Destination Address ( Channels A & B: 10.10.10.10 , Channels C & D: 10.10.11.10, Channels E & F: 10.10.12.10, Channels G & H: 10.10.13.10 )"
-    echo -e "\t3. Desired Port number ( Channel A: 42836, Channel B: 42837, Channel C: 42838, Channel D: 42839, Channel E: 42840, Channel F: 42841, Channel G: 42842, Channel H: 42843 )"
-    echo -e "\t4. Channel letter ( A, B, C, D, E, F, G, H )"
-    echo -e "\t5. File header"
+    echo -e "\t2. Destination Address ( For 9R, Channels A & B: 10.10.10.10 , Channels C & D: 10.10.11.10, Channels E & F: 10.10.12.10, Channels G H & I: 10.10.13.10 )"
+    echo -e "\t3. Desired Port number ( Channel A: 42836, Channel B: 42837, Channel C: 42838, Channel D: 42839, Channel E: 42840, Channel F: 42841, Channel G: 42842, Channel H: 42843 , Channel I: 42844)"
     echo -e "\tExample: "
-    echo -e "\t\tbash parse_pcap.sh filename 10.10.10.10 42836 A test0\n"
-    echo -e "\t\tbash parse_pcap.sh filename 10.10.10.10 42837 B test1\n"
-    echo -e "\t\tbash parse_pcap.sh filename 10.10.11.10 42838 C test2\n"
-    echo -e "\t\tbash parse_pcap.sh filename 10.10.11.10 42839 D test3\n"
-    echo -e "\t\tbash parse_pcap.sh filename 10.10.12.10 42840 E test4\n"
-    echo -e "\t\tbash parse_pcap.sh filename 10.10.12.10 42841 F test5\n"
-    echo -e "\t\tbash parse_pcap.sh filename 10.10.13.10 42842 G test6\n"
-    echo -e "\t\tbash parse_pcap.sh filename 10.10.13.10 42843 H test7\n"
+    echo -e "\t\tbash parse_pcap.sh filename 10.10.10.10 42836\n"
+    echo -e "\t\tbash parse_pcap.sh filename 10.10.10.10 42837\n"
+    echo -e "\t\tbash parse_pcap.sh filename 10.10.11.10 42838\n"
+    echo -e "\t\tbash parse_pcap.sh filename 10.10.11.10 42839\n"
+    echo -e "\t\tbash parse_pcap.sh filename 10.10.12.10 42840\n"
+    echo -e "\t\tbash parse_pcap.sh filename 10.10.12.10 42841\n"
+    echo -e "\t\tbash parse_pcap.sh filename 10.10.13.10 42842\n"
+    echo -e "\t\tbash parse_pcap.sh filename 10.10.13.10 42843\n"
+    echo -e "\t\tbash parse_pcap.sh filename 10.10.13.10 42844\n"
     exit
     
-}
-
-function help_pcap {
-    echo -e "If you would like to use a .pcapng file then please do the following;"
-    echo -e "\tpython xx.py filename.pcapng destinationAddr Port#"
-    echo -e "\tExample:"
-    echo -e "\t\tpython xx.py filename.pcapng 10.10.10.10 4280"
-    echo -e "\tNOTE: If there are multiple files, then this command needs"
-    echo -e "\tto be run manually for each file."
-    exit
 }
 
 set -e
@@ -43,12 +32,6 @@ declare -a DESTADDR=(10.10.10.10 10.10.11.10 10.10.12.10 10.10.13.10)
 declare -a PORTS=(42836 42837 42838 42839 42840 42841 42842 42843)
 declare -a CHANNELS=(A B C D E F G H)
 
-#Creating directory to store binary and graphs
-sudo mkdir -p /storage0/storage/bin_val_files
-sudo mkdir -p /storage1/storage/bin_val_files
-sudo mkdir -p /storage2/storage/bin_val_files
-sudo mkdir -p /storage3/storage/bin_val_files
-
 file=$1
 RUN_TIME_DATE=$(TZ=UTC date "+%F-%H%M%S%N")
 
@@ -57,12 +40,12 @@ if [ "${file: -5}" == ".pcap" ] ; then
     temp+="ng"
     sudo tshark -F pcapng -r $file -w $temp
     sudo rm $file
-    sudo python plot_vita_pcapng.py $temp $2 $3 $4 $RUN_TIME_DATE $5
+    sudo python3 plot_vita_pcapng.py $temp $2 $3
     exit
 fi
 
 if [ "${file: -7}" == ".pcapng" ] ; then
-    sudo python plot_vita_pcapng.py $file $2 $3 $4 $RUN_TIME_DATE $5
+    sudo python3 plot_vita_pcapng.py $file $2 $3
     exit
 fi
 
