@@ -47,12 +47,12 @@ if [ "${file: -5}" == ".pcap" ] ; then
     temp+="ng"
     sudo tshark -F pcapng -r $file -w $temp
     sudo rm $file
-    sudo python3 plot_vita_pcapng.py $temp $2 $3 $4-sdr2disk-$RUN_TIME_DATE
+    sudo python3 vita_pcapng_to_binary.py $temp $2 $3 $4-sdr2disk-$RUN_TIME_DATE
     exit
 fi
 
 if [ "${file: -7}" == ".pcapng" ] ; then
-    sudo python3 plot_vita_pcapng.py $file $2 $3 $4-sdr2disk-$RUN_TIME_DATE
+    sudo python3 vita_pcapng_to_binary.py $file $2 $3 $4-sdr2disk-$RUN_TIME_DATE
     exit
 fi
 

@@ -3,26 +3,30 @@ import matplotlib.pyplot as plt
 import sys
 import binascii
 import socket
+import shutil
+import os
 from pcapng import FileScanner
 from pcapng import blocks 
 
 smp_12bit = 0
-if len(sys.argv) != 4 :
-    if len(sys.argv) == 5:
-        if sys.argv[4] == '12bits':
+if len(sys.argv) != 5 :
+    if len(sys.argv) == 6:
+        if sys.argv[5] == '12bits':
             smp_12bit = 1
         else:
             sys.exit("\n **Error, missing arg : You need to provide : \n\
                         1. the pcapng file name \n\
                         2. the Dest IP Address of the packet to filter\n\
                         3. its UDP Dest port! \n\
-                        4. '12bits' if samples are 12 bits (optional)\n")
+                        4. name for the savefile \n\
+                        5. '12bits' if samples are 12 bits (optional)\n")
     else:
         sys.exit("\n **Error, missing arg : You need to provide : \n\
                     1. the pcapng file name \n\
                     2. the Dest IP Address of the packet to filter\n\
                     3. its UDP Dest port! \n\
-                    4. '12bits' if samples are 12 bits (optional)\n")
+                    4. name for the savefile \n\
+                    5. '12bits' if samples are 12 bits (optional)\n")
 
 
 
@@ -408,6 +412,19 @@ if found == 1:
 else:
     sys.exit('Destination IP address and port combination not present in the capture.')
 
+# location to write binary data into files
+location           = ''
+if sys.argv[2] == '10.10.10.10':
+    location = location + '/storage0/storage/bin_val_files/'
+elif sys.argv[2] == '10.10.11.10':
+    location = location + '/storage1/storage/bin_val_files'
+elif sys.argv[2] == '10.10.12.10':
+    location = location + '/storage2/storage/bin_val_files'
+elif sys.argv[2] == '10.10.12.10':
+    location = location + '/storage3/storage/bin_val_files'
+else:
+    sys.exit('ERROR: Dest IP Addr not recognized.')
+
 if (circle == 1):
     pltpkt = 0
     for z in range(max_packets):
@@ -420,6 +437,16 @@ if (circle == 1):
         q_samples_dec = []
         for y in range(len(q_samples_per_pkt[z])):
             q_samples_dec.append(twos_complement(q_samples_per_pkt[z][y],16))
+
+        i_samples_bin = []
+        for w in range(len(i_samples_dec)):
+            temp = "{0:b}".format(i_samples_dec[w])
+            i_samples_bin.append(temp)
+
+        q_samples_bin = []
+        for w in range(len(q_samples_dec)):
+            temp = "{0:b}".format(q_samples_dec[w])
+            q_samples_bin.append(temp)
         
         #print(i_samples_dec)
         #print(" ")
@@ -434,6 +461,7 @@ if (circle == 1):
         label_result[0]    = 'I'
         label_result[1]    = 'Q'
         
+        # show plot
         fig, axs = plt.subplots(2, sharex=True, sharey=False, gridspec_kw={'hspace': 0})   
         fig.suptitle('VITA Packet #' +str(pltpkt) )
         
@@ -444,6 +472,11 @@ if (circle == 1):
             ax.plot(result_dec_flat[index], linestyle = 'solid', linewidth = 0.9, color = 'blue', label = label_result[index]) 
             ax.legend(loc="upper right")
             index = index+1
+
+        file = open(sys.argv[4]+"-"+sys.argv[3]+"-bin_val-pkt"+str(z)+".txt", "w+")
+        file.write("i_samples = " + str(i_samples_bin) + "\nq_samples = " + str(q_samples_bin))
+        file.close()
+        shutil.move(sys.argv[4]+"-"+sys.argv[3]+"-bin_val-pkt"+str(z)+".txt", location)
 
         pltpkt = pltpkt+1
         plt.show()
@@ -478,6 +511,16 @@ else:
     q_samples_dec = []
     for y in range(len(q_samples)):
         q_samples_dec.append(twos_complement(q_samples[y],16))
+
+    i_samples_bin = []
+    for w in range(len(i_samples_dec)):
+        temp = "{0:b}".format(i_samples_dec[w])
+        i_samples_bin.append(temp)
+
+    q_samples_bin = []
+    for w in range(len(q_samples_dec)):
+        temp = "{0:b}".format(q_samples_dec[w])
+        q_samples_bin.append(temp)
     
     print('\n')
 
@@ -504,7 +547,12 @@ else:
             ax.plot(x8000, linestyle = 'dashed', linewidth = 0.5, color = 'red', label = 'Min (0x8000)') 
         ax.legend(loc="upper right")
         index = index+1
-    
+
+    file = open(sys.argv[4]+"-"+sys.argv[3]+"-bin_val.txt", "w+")
+    file.write("i_samples = " + str(i_samples_bin) + "\nq_samples = " + str(q_samples_bin))
+    file.close()
+    shutil.move(sys.argv[4]+"-"+sys.argv[3]+"-bin_val.txt", location)
+
     val = 'o'
 
     while (val != 'y') and (val != 'n'):
