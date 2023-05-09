@@ -420,7 +420,7 @@ elif sys.argv[2] == '10.10.11.10':
     location = location + '/storage1/storage/bin_val_files'
 elif sys.argv[2] == '10.10.12.10':
     location = location + '/storage2/storage/bin_val_files'
-elif sys.argv[2] == '10.10.12.10':
+elif sys.argv[2] == '10.10.13.10':
     location = location + '/storage3/storage/bin_val_files'
 else:
     sys.exit('ERROR: Dest IP Addr not recognized.')
