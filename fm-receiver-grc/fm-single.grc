@@ -148,8 +148,8 @@ blocks:
     orient: QtCore.Qt.Horizontal
     rangeType: float
     start: '0'
-    step: '1'
-    stop: '100'
+    step: '0.1'
+    stop: '4'
     value: '1'
     widget: counter_slider
   states:
@@ -195,25 +195,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1456, 672.0]
-    rotation: 0
-    state: true
-- name: blocks_multiply_const_vxx_0
-  id: blocks_multiply_const_vxx
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    const: volume
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    type: float
-    vlen: '1'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [1152, 672.0]
+    coordinate: [1168, 656.0]
     rotation: 0
     state: true
 - name: blocks_multiply_const_vxx_0_0
@@ -222,7 +204,7 @@ blocks:
     affinity: ''
     alias: ''
     comment: ''
-    const: '1'
+    const: volume
     maxoutbuf: '0'
     minoutbuf: '0'
     type: float
@@ -232,24 +214,6 @@ blocks:
     bus_source: false
     bus_structure: null
     coordinate: [848, 368.0]
-    rotation: 0
-    state: true
-- name: blocks_multiply_const_vxx_0_1
-  id: blocks_multiply_const_vxx
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    const: volume
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    type: float
-    vlen: '1'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [1160, 392.0]
     rotation: 0
     state: true
 - name: qtgui_freq_sink_x_0
@@ -427,7 +391,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1480, 392.0]
+    coordinate: [1160, 384.0]
     rotation: 0
     state: enabled
 - name: qtgui_waterfall_sink_x_0
@@ -950,12 +914,10 @@ blocks:
 
 connections:
 - [analog_fm_demod_cf_0, '0', blocks_multiply_const_vxx_0_0, '0']
-- [blocks_multiply_const_vxx_0, '0', audio_sink_0, '0']
-- [blocks_multiply_const_vxx_0_0, '0', blocks_multiply_const_vxx_0, '0']
-- [blocks_multiply_const_vxx_0_0, '0', blocks_multiply_const_vxx_0_1, '0']
+- [blocks_multiply_const_vxx_0_0, '0', audio_sink_0, '0']
 - [blocks_multiply_const_vxx_0_0, '0', qtgui_freq_sink_x_0, '0']
+- [blocks_multiply_const_vxx_0_0, '0', qtgui_time_sink_x_0, '0']
 - [blocks_multiply_const_vxx_0_0, '0', qtgui_waterfall_sink_x_0, '0']
-- [blocks_multiply_const_vxx_0_1, '0', qtgui_time_sink_x_0, '0']
 - [rational_resampler_xxx_0, '0', analog_fm_demod_cf_0, '0']
 - [uhd_usrp_source_0, '0', rational_resampler_xxx_0, '0']
 
