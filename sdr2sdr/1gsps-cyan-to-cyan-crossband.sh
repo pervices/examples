@@ -6,8 +6,9 @@ txaddr=192.168.11.2
 #txchan=0,1,2,3
 rxchan=0
 txchan=0
-rxgain=50
-txgain=25
+# chosen for ~-10dBm in
+rxgain=45
+txgain=12
 rxfreq=2e9
 txfreq=0
 bandwidth=1e9

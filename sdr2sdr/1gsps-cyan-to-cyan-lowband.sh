@@ -6,6 +6,7 @@ txaddr=192.168.11.2
 #txchan=0,1,2,3
 rxchan=0
 txchan=0
+# chosen for ~-30dBm in
 rxgain=15
 txgain=20
 rxfreq=0
