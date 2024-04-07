@@ -4,6 +4,7 @@ rxaddr=192.168.10.12
 txaddr=192.168.10.13
 rxchan=1
 txchan=1
+# chosen for ~-30dBm input
 rxgain=0
 txgain=0
 rxfreq=0
