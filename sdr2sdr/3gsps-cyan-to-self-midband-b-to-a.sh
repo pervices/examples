@@ -1,13 +1,13 @@
 #!/bin/bash
 
 rxaddr=192.168.10.2
-txaddr=192.168.11.2
+txaddr=192.168.10.2
 #rxchan=0,1,2,3
 #txchan=0,1,2,3
 rxchan=1
-txchan=1
+txchan=0
 # chosen for ~-10dBm in
-rxgain=49
+rxgain=45
 txgain=24
 rxfreq=2e9
 txfreq=2e9
