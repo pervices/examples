@@ -15,5 +15,5 @@ bandwidth=1e9
 #bandwidth=250000000
 #bandwidth=10000000
 
-/usr/lib/uhd/examples/rxtx_inter_device_stream --rx_args addr=192.168.10.2 --tx_args addr=192.168.11.2 --rate $bandwidth --rx_channels $rxchan --tx_channels $txchan --rx_gain $rxgain --tx_gain $txgain --rx_freq $rxfreq --tx_freq $txfreq
+/usr/lib/uhd/examples/rxtx_inter_device_stream --rx_args addr=192.168.10.2 --tx_args addr=192.168.11.2 --rate $bandwidth --rx_channels $rxchan --tx_channels $txchan --rx_gain $rxgain --tx_gain $txgain --rx_freq $rxfreq --tx_freq $txfreq --ref external
 
