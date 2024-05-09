@@ -15,7 +15,8 @@ a_rx_gain=37
 b_rx_gain=37
 b_tx_gain=14
 a_tx_gain=10
+ref=external
 
 /usr/lib/uhd/examples/rxtx_inter_device_stream --a_args $a_args --b_args $b_args --rate $rate --a_rx_channels $a_rx_channels --a_tx_channels $a_tx_channels --b_rx_channels $b_rx_channels --b_tx_channels $b_tx_channels \
---a_rx_freq $a_rx_freq --b_rx_freq $b_rx_freq --a_tx_freq $a_tx_freq --b_tx_freq $b_tx_freq --a_rx_gain $a_rx_gain --b_rx_gain $b_rx_gain --b_tx_gain $b_tx_gain --a_tx_gain $a_tx_gain
+--a_rx_freq $a_rx_freq --b_rx_freq $b_rx_freq --a_tx_freq $a_tx_freq --b_tx_freq $b_tx_freq --a_rx_gain $a_rx_gain --b_rx_gain $b_rx_gain --b_tx_gain $b_tx_gain --a_tx_gain $a_tx_gain --ref $ref
 
