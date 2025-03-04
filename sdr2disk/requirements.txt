@@ -1,2 +1,3 @@
 python-pcapng
 matplotlib
+pyqt5
