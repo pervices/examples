@@ -8,7 +8,7 @@
 #
 ################################################################################
 
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.16)
 
 project(fm_receiver CXX)
 
@@ -36,7 +36,7 @@ set(BOOST_REQUIRED_COMPONENTS
 
 find_package(Boost "1.46" REQUIRED ${BOOST_REQUIRED_COMPONENTS})
 find_package(UHD "3.13.0" REQUIRED)
-find_package(Gnuradio "3.7.0" REQUIRED)
+find_package(Gnuradio "3.7.0" REQUIRED COMPONENTS block analog filter fft audio uhd)
 
 ################################################################################
 # Link libraries
@@ -71,11 +71,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_executable(fm_radio source/fm_radio.cpp)
 target_link_libraries(fm_radio
-  gnuradio-analog
-  gnuradio-audio
-  gnuradio-filter
-  gnuradio-runtime
-  gnuradio-uhd)
+  gnuradio::gnuradio-blocks
+  gnuradio::gnuradio-analog
+  gnuradio::gnuradio-audio
+  gnuradio::gnuradio-filter
+  gnuradio::gnuradio-runtime
+  gnuradio::gnuradio-uhd)
 
 
 set(GNURADIO_LIBS "-lgnuradio-runtime -lgnuradio-blocks")
