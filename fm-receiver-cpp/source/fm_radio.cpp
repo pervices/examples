@@ -1,27 +1,30 @@
 #define _use_math_defines
 
-#include <algorithm>
-#include <boost/format.hpp>
+//#include <algorithm> ## include depreciated after 3.7.x
+//#include <boost/format.hpp> ## include depreciated after 3.7.x
 #include <boost/program_options.hpp>
-#include <chrono>
+//#include <chrono> ## include depreciated after 3.7.x
 #include <csignal>
 #include <gnuradio/analog/quadrature_demod_cf.h>
 #include <gnuradio/audio/sink.h>
 #include <gnuradio/blocks/complex_to_float.h>
-#include <gnuradio/filter/fir_filter_fff.h>
+//#include <gnuradio/filter/fir_filter_fff.h> ## include depreciated after 3.7.x
+#include <gnuradio/filter/fir_filter_blk.h>//added for gnuradio 3.10.x
 #include <gnuradio/filter/firdes.h>
-#include <gnuradio/filter/rational_resampler_base_ccf.h>
+//#include <gnuradio/filter/rational_resampler_base_ccf.h> ## include depreciated after 3.7.x
+#include <gnuradio/filter/rational_resampler.h> //added for gnuradio 3.10.x
 #include <gnuradio/top_block.h>
 #include <gnuradio/uhd/usrp_sink.h>
 #include <gnuradio/uhd/usrp_source.h>
 #include <iostream>
-#include <math.h>
-#include <thread>
-#include <uhd/exception.hpp>
-#include <uhd/types/tune_request.hpp>
-#include <uhd/usrp/multi_usrp.hpp>
-#include <uhd/utils/safe_main.hpp>
+//#include <math.h> ## include depreciated after 3.7.x
+//#include <thread> ## include depreciated after 3.7.x
+//#include <uhd/exception.hpp> ## include depreciated after 3.7.x
+//#include <uhd/types/tune_request.hpp> ## include depreciated after 3.7.x
+//#include <uhd/usrp/multi_usrp.hpp> ## include depreciated after 3.7.x
+//#include <uhd/utils/safe_main.hpp> ## include depreciated after 3.7.x
 #include <uhd/utils/thread.hpp>
+#include <gnuradio/fft/window.h> //## added for gnuradio 3.10
 
 //--------------------------------------------------------------------------------------------------
 //-- Debugging Tool
@@ -100,7 +103,7 @@ std::vector<float> design_filter(int interpolation, int decimation, float fracti
 
     std::vector<float> taps;
     taps = gr::filter::firdes::low_pass(interpolation, interpolation, mid_transition_band,
-                                        trans_width, gr::filter::firdes::WIN_KAISER, beta);
+                                        trans_width, gr::fft::window::WIN_KAISER, beta);
     return taps;
 }
 
@@ -242,8 +245,8 @@ int uhd_safe_main(int argc, char *argv[])
 
     // Resample source
     std::vector<float> resampler_taps = design_filter(INTERPOL_FACTOR, DECIMATE_FACTOR_RR);
-    gr::filter::rational_resampler_base_ccf::sptr resampler =
-        gr::filter::rational_resampler_base_ccf::make(INTERPOL_FACTOR, DECIMATE_FACTOR_RR,
+    gr::filter::rational_resampler_ccf::sptr resampler =
+        gr::filter::rational_resampler_ccf::make(INTERPOL_FACTOR, DECIMATE_FACTOR_RR,
                                                       resampler_taps);
 
     // Demodulate quadrature
