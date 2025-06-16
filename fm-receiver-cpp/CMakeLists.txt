@@ -36,19 +36,19 @@ set(BOOST_REQUIRED_COMPONENTS
 
 find_package(Boost "1.46" REQUIRED ${BOOST_REQUIRED_COMPONENTS})
 find_package(UHD "3.13.0" REQUIRED)
-find_package(Gnuradio "3.7.0" REQUIRED COMPONENTS block analog filter fft audio uhd)
+find_package(Gnuradio "3.7.0" REQUIRED COMPONENTS blocks analog filter fft audio uhd)
 
 ################################################################################
 # Link libraries
 ################################################################################
-include_directories(
-    ${Boost_INCLUDE_DIRS}
-    ${GR_AUDIO_INCLUDE_DIRS}
-    ${GR_ANALOG_INCLUDE_DIRS}
-    ${GNURADIO_RUNTIME_INCLUDE_DIRS}
-    ${UHD_INCLUDE_DIRS}
-)
-link_directories(${Boost_LIBRARY_DIRS})
+#include_directories(
+#   ${Boost_INCLUDE_DIRS}
+#   ${GR_AUDIO_INCLUDE_DIRS}
+#   ${GR_ANALOG_INCLUDE_DIRS}
+#   ${GNURADIO_RUNTIME_INCLUDE_DIRS}
+#   ${UHD_INCLUDE_DIRS}
+#)
+#link_directories(${Boost_LIBRARY_DIRS})
 
 ################################################################################
 # Configure Compiler
