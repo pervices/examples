@@ -125,7 +125,7 @@ std::vector<float> design_filter(int interpolation, int decimation, float fracti
 
 void print_usage(po::options_description desc)
 {
-    std::cout << "Usage: fm_radio [OPTIONS] ..." << std::endlGNURADIO_GREATER_THAN_3_10
+    std::cout << "Usage: fm_radio [OPTIONS] ..." << std::endl
               << "Receives frequency modulated signals from the specified station." << std::endl
               << std::endl
               << desc << std::endl
