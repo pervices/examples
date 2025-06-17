@@ -212,7 +212,7 @@ int setup_usrp_device(uhd::usrp::multi_usrp::sptr usrp_device, std::shared_ptr<U
     return 0;
 }
 
-int uhd_safe_main(int argc, char *argv[])
+int UHD_SAFE_MAIN(int argc, char *argv[])
 {
     uhd::set_thread_priority_safe();
 
