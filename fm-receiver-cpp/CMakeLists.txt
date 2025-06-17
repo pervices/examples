@@ -12,6 +12,20 @@ cmake_minimum_required(VERSION 3.16)
 
 project(fm_receiver CXX)
 
+message(STATUS "GNU Radio version: $ {GNURADIO_RUNTIME_VERSION}")
+
+string(REPLACE "." ";" VERSION_LIST $ {GNURADIO_RUNTIME_VERSION})
+list(GET VERSION_LIST 0 GR_MAJOR)
+list(GET VERSION_LIST 1 GR_MINOR)
+list(GET VERSION_LIST 2 GR_PATCH)
+
+add_definitions(-DGNURADIO_MAJOR_VERSION=${GR_MAJOR})
+add_definitions(-DGNURADIO_MINOR_VERSION=${GR_MINOR})
+add_definitions(-DGNURADIO_PATCH_VERSION=${GR_PATCH})
+
+if(${GR_MAJOR} LESS 3 OR (${GR_MAJOR}) EQUAL 3 AND ${GR_MINOR} LESS 10))
+add_definitions(-DGNURADIO_LESS_THAN_3_10)
+endif()
 ################################################################################
 # Set up Boost and UHD
 ################################################################################
