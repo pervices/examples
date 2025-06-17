@@ -1,6 +1,6 @@
 #define _use_math_defines
 
-#ifdef GNURADIO_LESS_THAN_3_10
+#ifdef GNURADIO_3_7
 #include <algorithm>
 #include <boost/format.hpp>
 #include <chrono>
@@ -9,6 +9,7 @@
 #include <math.h>
 #include <thread>
 #include <uhd/exception.hpp>
+
 #else
 
 #include <boost/program_options.hpp>
@@ -107,7 +108,7 @@ std::vector<float> design_filter(int interpolation, int decimation, float fracti
 
     std::vector<float> taps;
 
-    #ifdef GNURADIO_LESS_THAN_3_10
+    #ifdef GNURADIO_3_7
     taps = gr::filter::firdes::low_pass(interpolation, interpolation, mid_transition_band,
                                         trans_width, gr::filter::firdes::WIN_KAISER, beta);
     #else
@@ -124,7 +125,7 @@ std::vector<float> design_filter(int interpolation, int decimation, float fracti
 
 void print_usage(po::options_description desc)
 {
-    std::cout << "Usage: fm_radio [OPTIONS] ..." << std::endl
+    std::cout << "Usage: fm_radio [OPTIONS] ..." << std::endlGNURADIO_GREATER_THAN_3_10
               << "Receives frequency modulated signals from the specified station." << std::endl
               << std::endl
               << desc << std::endl
@@ -258,7 +259,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
     std::vector<float> resampler_taps = design_filter(INTERPOL_FACTOR, DECIMATE_FACTOR_RR);
 
 
-    #ifdef GNURADIO_LESS_THAN_3_10
+    #ifdef GNURADIO_3_7
     gr::filter::rational_resampler_base_ccf::sptr resampler =
     gr::filter::rational_resampler_base_ccf::make(INTERPOL_FACTOR, DECIMATE_FACTOR_RR,
                                              resampler_taps);

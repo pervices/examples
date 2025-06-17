@@ -58,8 +58,9 @@ add_definitions(-DGNURADIO_MAJOR_VERSION=${GR_MAJOR})
 add_definitions(-DGNURADIO_MINOR_VERSION=${GR_MINOR})
 add_definitions(-DGNURADIO_PATCH_VERSION=${GR_PATCH})
 
-if (GR_MAJOR LESS 3 OR GR_MAJOR EQUAL 3 AND GR_MINOR LESS 10)
-add_definitions(-DGNURADIO_LESS_THAN_3_10)
+
+if (GR_MAJOR EQUAL 3 AND GR_MINOR EQUAL 7)
+add_definitions(-DGNURADIO_3_7)
 endif()
 ################################################################################
 # Link libraries
