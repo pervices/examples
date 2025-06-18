@@ -1,23 +1,31 @@
 #define _use_math_defines
 
+#ifdef GNURADIO_3_7
 #include <algorithm>
 #include <boost/format.hpp>
-#include <boost/program_options.hpp>
 #include <chrono>
+#include <gnuradio/filter/fir_filter_fff.h>
+#include <gnuradio/filter/rational_resampler_base_ccf.h>
+#include <math.h>
+#include <thread>
+#include <uhd/exception.hpp>
+
+#else
+#include <gnuradio/filter/fir_filter_blk.h>
+#include <gnuradio/filter/rational_resampler.h>
+#include <gnuradio/fft/window.h>
+#endif
+
+#include <boost/program_options.hpp>
 #include <csignal>
 #include <gnuradio/analog/quadrature_demod_cf.h>
 #include <gnuradio/audio/sink.h>
 #include <gnuradio/blocks/complex_to_float.h>
-#include <gnuradio/filter/fir_filter_fff.h>
 #include <gnuradio/filter/firdes.h>
-#include <gnuradio/filter/rational_resampler_base_ccf.h>
 #include <gnuradio/top_block.h>
 #include <gnuradio/uhd/usrp_sink.h>
 #include <gnuradio/uhd/usrp_source.h>
 #include <iostream>
-#include <math.h>
-#include <thread>
-#include <uhd/exception.hpp>
 #include <uhd/types/tune_request.hpp>
 #include <uhd/usrp/multi_usrp.hpp>
 #include <uhd/utils/safe_main.hpp>
@@ -99,8 +107,14 @@ std::vector<float> design_filter(int interpolation, int decimation, float fracti
     }
 
     std::vector<float> taps;
+
+#ifdef GNURADIO_3_7
     taps = gr::filter::firdes::low_pass(interpolation, interpolation, mid_transition_band,
                                         trans_width, gr::filter::firdes::WIN_KAISER, beta);
+#else
+    taps = gr::filter::firdes::low_pass(interpolation, interpolation, mid_transition_band,	
+		    			trans_width, gr::fft:window::WIN_KAISER, beta);
+#endif
     return taps;
 }
 
@@ -242,9 +256,16 @@ int uhd_safe_main(int argc, char *argv[])
 
     // Resample source
     std::vector<float> resampler_taps = design_filter(INTERPOL_FACTOR, DECIMATE_FACTOR_RR);
+
+#ifdef GNURADIO_3_7
     gr::filter::rational_resampler_base_ccf::sptr resampler =
         gr::filter::rational_resampler_base_ccf::make(INTERPOL_FACTOR, DECIMATE_FACTOR_RR,
                                                       resampler_taps);
+#else
+    gr::filter::rational_resampler_ccf::sptr resampler =
+	gr::filter::rational_resampler_ccf::make(INTERPOL_FACTOR, DECIMATE_FACTOR_RR,
+			    			     resampler_taps);
+#endif
 
     // Demodulate quadrature
     float channel_rate = sample_rate / DECIMATE_FACTOR_DEMOD;
