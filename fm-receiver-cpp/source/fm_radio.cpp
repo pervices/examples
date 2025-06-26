@@ -113,7 +113,7 @@ std::vector<float> design_filter(int interpolation, int decimation, float fracti
                                         trans_width, gr::filter::firdes::WIN_KAISER, beta);
 #else
     taps = gr::filter::firdes::low_pass(interpolation, interpolation, mid_transition_band,	
-		    			trans_width, gr::fft:window::WIN_KAISER, beta);
+		    			trans_width, gr::fft::window::WIN_KAISER, beta);
 #endif
     return taps;
 }
