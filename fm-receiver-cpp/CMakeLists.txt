@@ -52,9 +52,6 @@ add_definitions(-DGNURADIO_MAJOR_VERSION=${GR_MAJOR})
 add_definitions(-DGNURADIO_MINOR_VERSION=${GR_MINOR})
 add_definitions(-DGNURADIO_PATCH_VERSION=${GR_PATCH})
 
-if(GR_MAJOR EQUAL 3 AND GR_MINOR EQUAL 7)
-	add_definitions(-DGNURADIO_3_7)
-endif()
 
 ################################################################################
 # Link libraries
@@ -89,11 +86,11 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_executable(fm_radio source/fm_radio.cpp)
 target_link_libraries(fm_radio
-  gnuradio-analog
-  gnuradio-audio
-  gnuradio-filter
-  gnuradio-runtime
-  gnuradio-uhd)
+  gnuradio::gnuradio-analog
+  gnuradio::gnuradio-audio
+  gnuradio::gnuradio-filter
+  gnuradio::gnuradio-runtime
+  gnuradio::gnuradio-uhd)
 
 
 set(GNURADIO_LIBS "-lgnuradio-runtime -lgnuradio-blocks")
