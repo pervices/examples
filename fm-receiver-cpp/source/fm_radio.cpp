@@ -3,9 +3,9 @@
 #if defined(GNURADIO_MAJOR_VERSION) && (GNURADIO_MAJOR_VERSION == 3)
 
     #if defined(GNURADIO_MINOR_VERSION) && (GNURADIO_MINOR_VERSION == 7)
-        #define GNURADIO_3_7
+        #define GNURADIO_VERSION 37
     #elif defined(GNURADIO_MINOR_VERSION) && (GNURADIO_MINOR_VERSION == 10)
-        #define GNURADIO_3_10
+        #define GNURADIO_VERSION 310
     #else
         #error This code has only been tested with GNURadio Versions 3.7.x and 3.10.x.
     #endif
@@ -14,7 +14,8 @@
     #error This code has only been tested with GNURadio Major Version 3.
 #endif
 
-#ifdef GNURADIO_3_7
+#if (GNURADIO_VERSION == 37)
+
     #include <algorithm>
     #include <boost/format.hpp>
     #include <chrono>
@@ -24,10 +25,12 @@
     #include <thread>
     #include <uhd/exception.hpp>
 
-#elif defined(GNURADIO_3_10)
+#elif (GNURADIO_VERSION == 310)
+
     #include <gnuradio/filter/fir_filter_blk.h>
     #include <gnuradio/filter/rational_resampler.h>
     #include <gnuradio/fft/window.h>
+
 #endif
 
 #include <boost/program_options.hpp>
@@ -122,10 +125,14 @@ std::vector<float> design_filter(int interpolation, int decimation, float fracti
 
     std::vector<float> taps;
 
-#ifdef GNURADIO_3_7
+#if (GNURADIO_VERSION == 37)
+
     taps = gr::filter::firdes::low_pass(interpolation, interpolation, mid_transition_band,trans_width, gr::filter::firdes::WIN_KAISER, beta);
-#elif defined(GNURADIO_3_10)
+
+#elif (GNURADIO_VERSION == 310)
+
     taps = gr::filter::firdes::low_pass(interpolation, interpolation, mid_transition_band,trans_width, gr::fft::window::WIN_KAISER, beta);
+
 #endif
     return taps;
 }
@@ -269,12 +276,16 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
     // Resample source
     std::vector<float> resampler_taps = design_filter(INTERPOL_FACTOR, DECIMATE_FACTOR_RR);
 
-#ifdef GNURADIO_3_7
+#if (GNURADIO_VERSION == 37)
+
     gr::filter::rational_resampler_base_ccf::sptr resampler =
         gr::filter::rational_resampler_base_ccf::make(INTERPOL_FACTOR, DECIMATE_FACTOR_RR,resampler_taps);
-#elif defined(GNURADIO_3_10)
+
+#elif (GNURADIO_VERSION == 310)
+
     gr::filter::rational_resampler_ccf::sptr resampler =
-gr::filter::rational_resampler_ccf::make(INTERPOL_FACTOR, DECIMATE_FACTOR_RR,resampler_taps);
+        gr::filter::rational_resampler_ccf::make(INTERPOL_FACTOR, DECIMATE_FACTOR_RR,resampler_taps);
+
 #endif
 
     // Demodulate quadrature
