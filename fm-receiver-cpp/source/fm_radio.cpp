@@ -1,20 +1,18 @@
 #define _use_math_defines
 
-#if defined(GNURADIO_MAJOR_VERSION) && (GNURADIO_MAJOR_VERSION == 3)
+#if !defined(GNURADIO_MAJOR_VERSION) || !defined(GNURADIO_MINOR_VERSION)
+	#error ERROR: The GNURadio major and minor version must be defined.
+#endif 
 
-    #if defined(GNURADIO_MINOR_VERSION) && (GNURADIO_MINOR_VERSION == 7)
-        #define GNURADIO_VERSION 37
-    #elif defined(GNURADIO_MINOR_VERSION) && (GNURADIO_MINOR_VERSION == 10)
-        #define GNURADIO_VERSION 310
-    #else
-        #error This code has only been tested with GNURadio Versions 3.7.x and 3.10.x.
+#if (GNURADIO_MAJOR_VERSION == 3)
+    #if !( (GNURADIO_MINOR_VERSION == 7) || (GNURADIO_MINOR_VERSION == 10) )
+        #error ERROR: This code has only been tested with GNURadio Versions 3.7.x and 3.10.x.
     #endif
-
 #else
-    #error This code has only been tested with GNURadio Major Version 3.
+    #error ERROR: This code has only been tested with GNURadio Major Version 3.
 #endif
 
-#if (GNURADIO_VERSION == 37)
+#if (GNURADIO_MAJOR_VERSION == 3) && (GNURADIO_MINOR_VERSION == 7)
 
     #include <algorithm>
     #include <boost/format.hpp>
@@ -25,7 +23,7 @@
     #include <thread>
     #include <uhd/exception.hpp>
 
-#elif (GNURADIO_VERSION == 310)
+#elif (GNURADIO_MAJOR_VERSION == 3) && (GNURADIO_MINOR_VERSION == 10)
 
     #include <gnuradio/filter/fir_filter_blk.h>
     #include <gnuradio/filter/rational_resampler.h>
@@ -125,11 +123,11 @@ std::vector<float> design_filter(int interpolation, int decimation, float fracti
 
     std::vector<float> taps;
 
-#if (GNURADIO_VERSION == 37)
+#if (GNURADIO_MAJOR_VERSION == 3) && (GNURADIO_MINOR_VERSION == 7)
 
     taps = gr::filter::firdes::low_pass(interpolation, interpolation, mid_transition_band,trans_width, gr::filter::firdes::WIN_KAISER, beta);
 
-#elif (GNURADIO_VERSION == 310)
+#elif (GNURADIO_MAJOR_VERSION == 3) && (GNURADIO_MINOR_VERSION == 10)
 
     taps = gr::filter::firdes::low_pass(interpolation, interpolation, mid_transition_band,trans_width, gr::fft::window::WIN_KAISER, beta);
 
@@ -276,12 +274,12 @@ int UHD_SAFE_MAIN(int argc, char *argv[])
     // Resample source
     std::vector<float> resampler_taps = design_filter(INTERPOL_FACTOR, DECIMATE_FACTOR_RR);
 
-#if (GNURADIO_VERSION == 37)
+#if (GNURADIO_MAJOR_VERSION == 3) && (GNURADIO_MINOR_VERSION == 7)
 
     gr::filter::rational_resampler_base_ccf::sptr resampler =
         gr::filter::rational_resampler_base_ccf::make(INTERPOL_FACTOR, DECIMATE_FACTOR_RR,resampler_taps);
 
-#elif (GNURADIO_VERSION == 310)
+#elif (GNURADIO_MAJOR_VERSION == 3) && (GNURADIO_MINOR_VERSION == 10)
 
     gr::filter::rational_resampler_ccf::sptr resampler =
         gr::filter::rational_resampler_ccf::make(INTERPOL_FACTOR, DECIMATE_FACTOR_RR,resampler_taps);
