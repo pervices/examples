@@ -9,11 +9,6 @@ void buffer_tracker::set_sample_rate( const double rate ) {
     nominal_sample_rate = rate;
 }
 
-// Returns true if waiting for start time
-bool buffer_tracker::start_of_burst_pending( const time_spec_t & now ) {
-    return now < first_sob_time;
-}
-
 // Sets the time when this burst ends
 void buffer_tracker::set_start_of_burst_time( const time_spec_t & sob ) {
     blank_period_stop.push_back(sob);

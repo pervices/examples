@@ -39,10 +39,6 @@
 			return avg;
 		}
 
-		size_t get_num_samples() {
-			return X.size();
-		}
-
 		void set_window_size( double N ) {
 			this->N = N;
 		}

@@ -23,7 +23,6 @@ public:
 
 	void set_sample_rate( const double rate );
 
-	bool start_of_burst_pending( const time_spec_t & now );
     void set_start_of_burst_time( const time_spec_t & sob );
     // Removes the last sob added to the list
     void pop_back_start_of_burst_time();

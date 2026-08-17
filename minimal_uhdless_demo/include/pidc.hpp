@@ -29,12 +29,6 @@
         // Threshold for reseting clock sync instead of trying to continue
         static constexpr uint64_t RESET_THRESHOLD = 1000000;
 
-		typedef enum {
-			K_P,
-			K_I,
-			K_D,
-		} k_t;
-
 		/** TODO: disable empty initialization
 		 * Make it impossible to accidentally forget to configure the pid PID_controller
 		 * Since pid mistakes are very hard to debug
@@ -118,26 +112,8 @@
 			return cv - offset;
 		}
 
-		time_spec_t get_last_time() {
-			return last_time;
-		}
-
-		// XXX: @CF: should only be used in the case where last time is not necessarily when the pidc constructor was called
-		void set_last_time( const time_spec_t &t ) {
-			last_time = t;
-		}
-
 		time_spec_t get_control_variable() {
 			return cv - offset;
-		}
-
-		double get_k( k_t k ) {
-			switch( k ) {
-			case K_P: return Kp;
-			case K_I: return Ki;
-			case K_D: return Kd;
-			default: return 0;
-			}
 		}
 
 		void reset( const time_spec_t &time, const double offset ) {
@@ -188,9 +164,6 @@
 			return converged;
 		}
 
-		double get_max_error_for_convergence() {
-			return max_error_for_divergence;
-		}
 		void set_max_error_for_convergence( const double error ) {
 			max_error_for_divergence = std::abs( error );
 		}
@@ -201,12 +174,6 @@
 			error_filter.update( avg );
 		}
 
-		void set_offset( const time_spec_t timeOffset ) {
-			offset =  timeOffset;
-		}
-		time_spec_t get_offset(){
-			return offset;
-		}
 	private:
 		double Kp, Ki, Kd;
 
@@ -250,13 +217,6 @@
 #ifdef DEBUG_PIDC
 			std::cerr
 				<< "PID Diverged"
-				<< std::endl;
-#endif
-		}
-		static void print_pid_reset() {
-#ifdef DEBUG_PIDC
-			std::cerr
-				<< "PID Reset"
 				<< std::endl;
 #endif
 		}
