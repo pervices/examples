@@ -1,0 +1,736 @@
+//
+// Copyright 2023-2024 Per Vices Corporation
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+
+#pragma once
+
+// UHD Includes
+#include <array>
+#include <cstring>
+#include "metadata.hpp"
+#include "vrt_if_packet.hpp"
+
+#include "clock_sync.hpp"
+#include "buffer_tracker.hpp"
+
+// Linux API
+#include <sys/socket.h>
+
+// For printing warning messages
+#include <iostream>
+
+
+#define MIN_MTU 9000
+
+// Only the pointer type is needed here (post_output_action never touches the
+// pointee); the full definition lives in uhd/rfnoc/actions.hpp, which isn't
+// otherwise used by this demo.
+namespace uhd { namespace rfnoc { struct action_info; } }
+
+namespace uhd {
+namespace transport {
+namespace sph {
+    // Socket priority for tx sockets
+    // Highest possible thread priority without CAP_NET_ADMIN
+    const int TX_SO_PRIORITY = 6;
+
+    // Cache line size on AMD64 CPUs
+    static constexpr size_t CACHE_LINE_SIZE = 64;
+
+    // Highest number of tx channels a streamer can support
+    // (duplicated as a private constant in send_packet_handler_mmsg below;
+    // needs to be visible here for buffs_type)
+    static constexpr uint_fast8_t MAX_CHANNELS = 16;
+
+    // Typedef for a pointer to a single, or a collection of send buffers
+    // (formerly uhd::ref_vector<const void*>, from uhd/stream.hpp / ref_vector.hpp)
+    typedef std::array<const void*, MAX_CHANNELS> buffs_type;
+
+/***********************************************************************
+ * Super send packet handler
+ *
+ * A send packet handler represents a group of channels.
+ * The channel group shares a common sample rate.
+ * All channels are sent in unison in send().
+ **********************************************************************/
+class alignas(CACHE_LINE_SIZE) send_packet_handler_mmsg {
+// Declare constants first so they are initialized before constructor
+private:
+    // Cache line size
+    // Assume it is 64, which is the case for virtually all AMD64 systems
+    static constexpr uint_fast8_t CACHE_LINE_SIZE = 64;
+    static constexpr uint_fast8_t _bytes_per_sample = 4;
+    // Size of the vrt header in bytes
+    static constexpr uint_fast8_t HEADER_SIZE = 12;
+
+    // All tx currently uses sc16 which is 32 bits
+    static constexpr uint_fast8_t _BYTES_PER_SAMPLE = 4;
+
+    // Desired send buffer size
+    static constexpr int _DEFAULT_SEND_BUFFER_SIZE = 50000000;
+
+    /**
+     * To optimize data locations we are using fixed length buffers.
+     * This is the highest number of tx channels the streamer can support.
+     * If this number needs to be increased to be to high we will need to move from fixed length buffers to variable length with false sharing padding.
+     */
+    static constexpr uint_fast8_t MAX_CHANNELS = 16;
+
+    /**
+     * Start of non-pointer variables that are constant during streaming.
+     * They must be on a separate cache line from variables that are changed by other threads.
+     */
+
+    // Desired number of samples in the tx buffer on the unit
+    alignas(CACHE_LINE_SIZE) const ssize_t _DEVICE_TARGET_NSAMPS;
+
+    // Number of packets per packet must be a multiple of this. Excess are cached and sent in the next send
+    const size_t _DEVICE_PACKET_NSAMP_MULTIPLE;
+
+protected:
+    const ssize_t _max_samples_per_packet;
+
+private:
+    const size_t _MAX_SAMPLE_BYTES_PER_PACKET;
+
+    // Tick rate of the device. It is used for timestamps
+    const double _TICK_RATE;
+
+    // Setpoint to use in blocking buffer management mode
+    int64_t blocking_setpoint = 0;
+
+    // Device buffer size
+    const int64_t _DEVICE_BUFFER_SIZE;
+
+    double _sample_rate = 0;
+
+    /**
+     * How close (in seconds) to being late a packet can be before we drop it
+     * Reasons to drop packets to avoid any arrive late:
+     * Currently the FPGA will play late packets when they arrive, result in permenant loss of phase (this is being changed but until then this is needed to reduce the chance of loss of phase)
+     * To better catch up from underflows
+     */
+    double drop_lead = 0;
+
+    // Sockets used to send sample packets to the device
+    int send_sockets[MAX_CHANNELS] = {};
+
+protected:
+    const size_t _NUM_CHANNELS;
+
+    /**
+     * Which physical channel coresponds each index in the list of channels the user provided.
+     * Example: The user requests channels 6, 2, 4. Then _channels = {6, 2, 4}.
+     * Within this class "channel" refers the physical channel.
+     * channel index refers the the index in the list provided
+     */
+    size_t _channels[MAX_CHANNELS] = {};
+
+    bool use_blocking_fc = false;
+
+    /**
+     * Start of pointers that are constant but point to non const data.
+     * The pointers follow the same rules as non pointer variables, but accessing the data requires special care.
+     */
+
+protected:
+    // Raw pointer to clock sync to avoid smart pointer overhead/false sharing
+    uhd::usrp::clock_sync* const _clock_sync;
+
+    /**
+     * Start of variables that are only written by the main sending thread.
+     * Same rules as constant non pointer variables.
+     */
+
+private:
+    // The start time of the next batch of samples in ticks
+    // The FPGA requires a timestampt always be present in packets. This is used to figureout the timestamp when not specified by the user
+    uhd::time_spec_t next_send_time = uhd::time_spec_t(0.0);
+
+    // Number of samples cached between sends to account for _DEVICE_PACKET_NSAMP_MULTIPLE restriction
+    size_t nsamps_in_cache = 0;
+    // Number of cached_samples dropped during the last EOB, resets after printing warning to user
+    size_t dropped_nsamps_in_cache = 0;
+
+    // Sequence number for next packet
+    uint64_t next_sequence_number = 0;
+
+    // Diagnostic info for printing at the end of streaming to avoid impacting speed
+    struct timespec sendmmsg_failure_time;
+    int sendmmsg_errno = 0;
+
+    /**
+     * Start of variables may be changed by other threads, and are needed by the main thread.
+     * They usually need to be on their own cache line.
+     * NOTE: the first variable after this point must be cache line aligned to avoid false sharing with earlier variables
+     */
+
+    /**
+     * A smart pointer that own's the class used for clock sync.
+     * This exists solely to maintian ownership.
+     * Actual access to the class should be done through _clock_sync for avoiding false sharing
+     */
+    alignas(CACHE_LINE_SIZE) std::shared_ptr<uhd::usrp::clock_sync> _clock_sync_owner;
+
+    /**
+     * Start of variables that require more complex refactoring than planned for the first stage of anti false sharing
+     * TODO Refactor for false sharing
+     */
+
+    // Header info for each packet, the VITA (not UDP) header is the same for every channel
+    std::vector<vrt::if_packet_info_t> packet_header_infos;
+
+private:
+
+    //TODO move all the vectors with channel specific info here
+    // Stores information about packets to send for each channel
+    // Sizes of the various buffers used in send
+    size_t send_buffer_info_size = 0;
+    struct ch_send_buffer_info {
+        const size_t _vrt_header_size;
+        // Stores samples between sends, to account for limitations in number samples that can be sent at once
+        std::vector<int8_t> sample_cache;
+        // Stores data about the send for each packet
+        std::vector<mmsghdr> msgs;
+        // 0 points to header of the first packet, 1 to data, 2 to header of second packet...
+        std::vector<iovec> iovecs;
+
+        // Contains vrt header data for each packet
+        std::vector<std::vector<uint32_t>> vrt_headers;
+
+        // Stores where the samples start for each packet
+        std::vector<const void*> sample_data_start_for_packet;
+
+        // Calculates the predicted buffer level
+        buffer_tracker buffer_level_manager;
+
+        /*!
+         * Make a new ch_send_buffer_info
+         * \param size number of packets that can be handled at once
+         * \param vrt_header_size size of the vrt header
+         * \param cache_size number of bytes in the sample cache
+         */
+        ch_send_buffer_info(const size_t size, const size_t vrt_header_size, const size_t cache_size, const int64_t device_target_nsamps, const double rate);
+
+        // Resizes and clears the buffers to match packet_helper_buffer_size
+        void resize_and_clear(size_t new_size);
+    };
+
+    // Group of recv info for each channels
+    std::vector<ch_send_buffer_info> ch_send_buffer_info_group;
+
+    // A smart pointer can have inconsistent access times but we need it to maintain ownership of the info to ensure it is not destructed
+    // To solve this problem, we will put the smart pointer on it's own cache line (shown here as a pointer to a smart pointer) for ownership while using a raw pointer for actual operations
+
+protected:
+    // TODO: add comments clarifying how the vector is used. I am delaying adding anti false sharing changes to it because it is unclear how it is used
+    // Lockfiles to indicate the channel is currently actively streaming to prevent issues like changing the rate in the middle of a stream
+    std::vector<int> _streaming_locks;
+
+    /**
+     * End of variables.
+     */
+
+public:
+    /*!
+     * Make a new packet handler for send
+     * \param buffer_size size of the buffer on the unit
+     */
+    send_packet_handler_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, const std::string& cpu_format, const std::string& wire_format, bool wire_little_endian, std::shared_ptr<uhd::usrp::clock_sync> clock_sync_info_owner, std::vector<int> streaming_locks);
+
+    ~send_packet_handler_mmsg(void);
+
+/*******************************************************************
+ * Send:
+ * The entry point for the fast-path send calls.
+ * Dispatch into combinations of single packet send calls.
+ ******************************************************************/
+private:
+    // Used to cache start of burst from a send that sent no data so it can be added to the next iteration
+    // TODO: verify we should be caching. It seems wierd that we cache it from a failed attempt instead of the user keeping the flag in their next send
+    bool cached_sob = false;
+    uhd::time_spec_t sob_time_cache;
+
+public:
+
+    void set_samp_rate(const double rate);
+    void enable_blocking_fc(int64_t blocking_setpoint);
+    void disable_blocking_fc();
+    void lock_channel_streaming(size_t channel_num);
+
+protected:
+    /*******************************************************************
+     * converts vrt packet info into header
+     * packet_buff: buffer to write vrt data to
+     * if_packet_info: packet info to be used to calculate the header
+     ******************************************************************/
+    virtual void if_hdr_pack(uint32_t* packet_buff, vrt::if_packet_info_t& if_packet_info) = 0;
+
+    // Sends a request for the buffer level from the device, returns the result of that request
+    virtual int64_t get_buffer_level_from_device(const size_t ch_i) = 0;
+
+private:
+    // Expands the buffers used in the send command, does nothing if already large enough
+    void expand_send_buffer_info(size_t new_size);
+
+private:
+
+    // Gets the number of samples that can be sent now (can be less than 0)
+    int check_fc_npackets(const size_t ch_i);
+
+    void send_eob_packet(const uhd::tx_metadata_t &metadata, double timeout);
+
+    int get_mtu(int socket_fd, std::string ip);
+
+public:
+
+    inline size_t send(
+        const buffs_type &sample_buffs,
+        const size_t nsamps_to_send,
+        const uhd::tx_metadata_t &metadata,
+        const double timeout
+    ) {
+        size_t previous_nsamps_in_cache = nsamps_in_cache;
+
+        // FPGAs can sometimes only receive multiples of a set number of samples
+        size_t actual_nsamps_to_send = (((nsamps_in_cache + nsamps_to_send) / _DEVICE_PACKET_NSAMP_MULTIPLE) * _DEVICE_PACKET_NSAMP_MULTIPLE);
+        size_t desired_nsamps_to_cache = nsamps_to_send + nsamps_in_cache - actual_nsamps_to_send;
+
+        if(actual_nsamps_to_send == 0) {
+            // If a start of burst command has no packets, and is not also an end of burstcache timestamp and keep until next call
+            if(metadata.start_of_burst && !metadata.end_of_burst) {
+                cached_sob = true;
+                sob_time_cache = metadata.time_spec;
+                return 0;
+            } else if(metadata.end_of_burst) {
+                send_eob_packet(metadata, timeout);
+                return 0;
+            } else {
+                return 0;
+            }
+        }
+
+        // Lets the user know if the last burst dropped samples due to packet length multiple requirements
+        if(dropped_nsamps_in_cache) {
+            std::cout << "[SUPER_SEND_PACKET_HANDLER_MMSG] WARNING: bursts must be a multiple of " << _DEVICE_PACKET_NSAMP_MULTIPLE << " samples. Dropping " << dropped_nsamps_in_cache << " samples to comply" << std::endl;
+            dropped_nsamps_in_cache = 0;
+        }
+
+        uhd::tx_metadata_t modified_metadata = metadata;
+        if(cached_sob) {
+            cached_sob = false;
+            modified_metadata.start_of_burst = true;
+            modified_metadata.has_time_spec = true;
+            modified_metadata.time_spec = sob_time_cache;
+        }
+        // FPGA cannot handle eob request and samples. Samples must be sent before end of burst
+        bool eob_requested = false;
+        if(modified_metadata.end_of_burst) {
+            modified_metadata.end_of_burst = false;
+            eob_requested = true;
+        }
+
+        // Create and sends packets
+        size_t actual_samples_sent = send_multiple_packets(sample_buffs, actual_nsamps_to_send, modified_metadata, timeout);
+
+        // Sends the eob if requested
+        if(eob_requested) {
+            modified_metadata.end_of_burst = true;
+            send_eob_packet(metadata, timeout);
+        }
+
+        // Actual number of samples to cache
+        size_t actual_nsamples_to_cache;
+        // Number of samples from the cache that were sent
+        size_t cached_samples_sent;
+        // NUmber of samples from that cache that are to be kept for the next run that were present from the previous run
+        size_t cached_samples_to_retain;
+
+        // Copies samples that won't fit as a multiple of _DEVICE_PACKET_NSAMP_MULTIPLE to the cache
+        if(actual_samples_sent == 0) {
+            // No samples sent, therefore none should be added to the buffer
+            actual_nsamples_to_cache = 0;
+            // No samples sent, therefore no cached samples were consumed
+            cached_samples_sent = 0;
+            // No samples sent, therefore all samples in cache kept
+            cached_samples_to_retain = previous_nsamps_in_cache;
+
+        } else if(actual_samples_sent < previous_nsamps_in_cache) {
+            actual_nsamples_to_cache = 0;
+            cached_samples_sent = actual_samples_sent;
+            cached_samples_to_retain = previous_nsamps_in_cache - cached_samples_sent;
+
+            // If fewer samples were sent than were in the cache move the remaining samples to front of the cache
+            for(size_t ch_i = 0; ch_i < _NUM_CHANNELS; ch_i++) {
+                memmove(ch_send_buffer_info_group[ch_i].sample_cache.data(), ch_send_buffer_info_group[ch_i].sample_cache.data() + actual_samples_sent, cached_samples_to_retain * _bytes_per_sample);
+            }
+        } else if(actual_samples_sent < actual_nsamps_to_send) {
+            // If not the samples meant to actually be sent were sent, clear the cache and do not cache any samples
+            // The sample cache is meant to handle the case where the send was successful, but the number of samples the user requested isn't a multiple of the required amount
+            // Since in this case the send didn't send all the intended samples anyway, we don't need to bother with the cache
+            actual_nsamples_to_cache = 0;
+            cached_samples_sent = previous_nsamps_in_cache;
+            cached_samples_to_retain = 0;
+        }
+        else if(actual_samples_sent == actual_nsamps_to_send) {
+            actual_nsamples_to_cache = desired_nsamps_to_cache;
+            cached_samples_sent = previous_nsamps_in_cache;
+            cached_samples_to_retain = 0;
+            // Since send was fully successful, copy samples that couldn't be sent this send due to limitations on packet sizing to the cache
+            if(desired_nsamps_to_cache > 0) {
+                for(size_t ch_i = 0; ch_i < _NUM_CHANNELS; ch_i++) {
+                    memcpy(ch_send_buffer_info_group[ch_i].sample_cache.data(), (uint8_t*)(sample_buffs[ch_i]) + ((actual_samples_sent - cached_samples_sent) * _bytes_per_sample), actual_nsamples_to_cache * _bytes_per_sample);
+                }
+            }
+        } else {
+            fprintf(stderr, "ERROR, more samples sent than intended. This should be impossible, contact support\n");
+            // Reaching here should be impossible, these values don't matter
+            actual_nsamples_to_cache = 0;
+            cached_samples_sent = 0;
+            cached_samples_to_retain = 0;
+        }
+
+        // Update number of samples in cache count
+        nsamps_in_cache = previous_nsamps_in_cache - cached_samples_sent + actual_nsamples_to_cache;
+
+        // Return number of samples actually sent
+        return actual_samples_sent - cached_samples_sent + actual_nsamples_to_cache;
+    }
+
+private:
+
+    inline size_t send_multiple_packets(
+        const buffs_type &sample_buffs,
+        const size_t nsamps_to_send,
+        const uhd::tx_metadata_t &metadata_,
+        const double timeout,
+        // TODO: split sending the eob packets into their own function to be less spaghetti
+        // Call this function for sending eob packet (which only contains dummy samples)
+        const bool is_eob_send = false
+    ) {
+
+        // Number of packets to send
+        int num_packets = std::ceil(((double)nsamps_to_send)/_max_samples_per_packet);
+
+        size_t samples_in_last_packet = nsamps_to_send - (_max_samples_per_packet * (num_packets - 1));
+
+        // Expands size of buffers used to store data to be sent
+        expand_send_buffer_info(num_packets);
+
+        // Sets the start os burst time
+        if(metadata_.start_of_burst) {
+            for(auto& ch_send_buffer_info_i : ch_send_buffer_info_group) {
+                ch_send_buffer_info_i.buffer_level_manager.set_start_of_burst_time(metadata_.time_spec);
+            }
+        }
+
+        for(int n = 0; n < num_packets; n++) {
+            packet_header_infos[n].packet_type = vrt::if_packet_info_t::PACKET_TYPE_DATA;
+            packet_header_infos[n].packet_count = (next_sequence_number + n) & 0xf;
+            packet_header_infos[n].has_sid = false;
+            packet_header_infos[n].has_sid = false;
+            packet_header_infos[n].has_cid = false;
+            packet_header_infos[n].has_tlr = false; // No trailer
+            packet_header_infos[n].has_tsi = false; // No integer timestamp
+            packet_header_infos[n].has_tsf = true; // Always include a fractional timestamp (in ticks of _TICK_RATE)
+            if(metadata_.has_time_spec) {
+                // Sets the timestamp based on what's specified by the user
+                packet_header_infos[n].tsf = (metadata_.time_spec + time_spec_t::from_ticks(n * _max_samples_per_packet - nsamps_in_cache, _sample_rate)).to_ticks(_TICK_RATE);
+            } else {
+                // Sets the timestamp to follow from the previous send
+                packet_header_infos[n].tsf = (next_send_time + time_spec_t::from_ticks(n * _max_samples_per_packet - nsamps_in_cache, _sample_rate)).to_ticks(_TICK_RATE);
+            }
+            packet_header_infos[n].sob = (n == 0) && metadata_.start_of_burst;
+            packet_header_infos[n].eob     = metadata_.end_of_burst;
+            packet_header_infos[n].fc_ack  = false; // Is not a flow control packet
+
+            packet_header_infos[n].num_payload_bytes = _MAX_SAMPLE_BYTES_PER_PACKET;
+            packet_header_infos[n].num_payload_words32 = (_MAX_SAMPLE_BYTES_PER_PACKET + 3/*round up*/)/sizeof(uint32_t);
+        }
+
+        //Set payload size info for last packet
+        packet_header_infos[num_packets - 1].num_payload_bytes = samples_in_last_packet * _bytes_per_sample;
+        packet_header_infos[num_packets - 1].num_payload_words32 = ((samples_in_last_packet*_bytes_per_sample) + 3/*round up*/)/sizeof(uint32_t);
+
+        for(size_t ch_i = 0; ch_i < _NUM_CHANNELS; ch_i++) {
+            for(int n = 0; n < num_packets; n++) {
+                if_hdr_pack(ch_send_buffer_info_group[ch_i].vrt_headers[n].data(), packet_header_infos[n]);
+            }
+        }
+
+        // Figures out where in the user provided buffer each packet should get data from
+        for(size_t ch_i = 0; ch_i < _NUM_CHANNELS; ch_i++) {
+            // Get data from the start of the buffer for the first packet
+            // Impact of the cached samples is handled later by making adding cache to the iovec before the buffer
+            ch_send_buffer_info_group[ch_i].sample_data_start_for_packet[0] = (uint8_t*)(sample_buffs[ch_i]);
+            // For every other packet get data from (buffer start) + (packet_number * packet data length), the subtract samples
+            for(int n = 1; n < num_packets; n++) {
+                ch_send_buffer_info_group[ch_i].sample_data_start_for_packet[n] = (uint8_t*)(sample_buffs[ch_i]) + (n * _MAX_SAMPLE_BYTES_PER_PACKET) - (nsamps_in_cache * _bytes_per_sample);
+            }
+        }
+
+        for(size_t ch_i = 0; ch_i < _NUM_CHANNELS; ch_i++) {
+            // Sets up iovecs for the first packets
+            // VRT Header
+            ch_send_buffer_info_group[ch_i].iovecs[0].iov_base = ch_send_buffer_info_group[ch_i].vrt_headers[0].data();
+            ch_send_buffer_info_group[ch_i].iovecs[0].iov_len = HEADER_SIZE;
+            // Cached samples
+            ch_send_buffer_info_group[ch_i].iovecs[1].iov_base = ch_send_buffer_info_group[ch_i].sample_cache.data();
+            ch_send_buffer_info_group[ch_i].iovecs[1].iov_len = nsamps_in_cache * _bytes_per_sample;
+            // Samples
+            // iovecs.iov_base is const for all practical purposes, const_cast is used to allow it to use data from the buffer which is const
+            ch_send_buffer_info_group[ch_i].iovecs[2].iov_base = const_cast<void*>(ch_send_buffer_info_group[ch_i].sample_data_start_for_packet[0]);
+            if(num_packets > 1) {
+                ch_send_buffer_info_group[ch_i].iovecs[2].iov_len = _MAX_SAMPLE_BYTES_PER_PACKET - (nsamps_in_cache * _bytes_per_sample);
+            } else {
+                ch_send_buffer_info_group[ch_i].iovecs[2].iov_len = (samples_in_last_packet - nsamps_in_cache) * _bytes_per_sample;
+            }
+
+            ch_send_buffer_info_group[ch_i].msgs[0].msg_hdr.msg_iov = &ch_send_buffer_info_group[ch_i].iovecs[0];
+            ch_send_buffer_info_group[ch_i].msgs[0].msg_hdr.msg_iovlen = 3;
+
+            // Setting optional data to none
+            ch_send_buffer_info_group[ch_i].msgs[0].msg_hdr.msg_name = NULL;
+            ch_send_buffer_info_group[ch_i].msgs[0].msg_hdr.msg_namelen = 0;
+            ch_send_buffer_info_group[ch_i].msgs[0].msg_hdr.msg_control = NULL;
+            ch_send_buffer_info_group[ch_i].msgs[0].msg_hdr.msg_controllen = 0;
+
+            // Sets up iovecs and msg for packets 1 to n -1
+            for(int n = 1; n < num_packets - 1; n++) {
+                // VRT Header
+                ch_send_buffer_info_group[ch_i].iovecs[1+(2*n)].iov_base = ch_send_buffer_info_group[ch_i].vrt_headers[n].data();
+                ch_send_buffer_info_group[ch_i].iovecs[1+(2*n)].iov_len = HEADER_SIZE;
+                // Samples
+                // iovecs.iov_base is const for all practical purposes, const_cast is used to allow it to use data from the buffer which is const
+                ch_send_buffer_info_group[ch_i].iovecs[1+(2*n)+1].iov_base = const_cast<void*>(ch_send_buffer_info_group[ch_i].sample_data_start_for_packet[n]);
+                ch_send_buffer_info_group[ch_i].iovecs[1+(2*n)+1].iov_len = _MAX_SAMPLE_BYTES_PER_PACKET;
+
+                ch_send_buffer_info_group[ch_i].msgs[n].msg_hdr.msg_iov = &ch_send_buffer_info_group[ch_i].iovecs[1+(2*n)];
+                ch_send_buffer_info_group[ch_i].msgs[n].msg_hdr.msg_iovlen = 2;
+
+                // Setting optional data to none
+                ch_send_buffer_info_group[ch_i].msgs[n].msg_hdr.msg_name = NULL;
+                ch_send_buffer_info_group[ch_i].msgs[n].msg_hdr.msg_namelen = 0;
+                ch_send_buffer_info_group[ch_i].msgs[n].msg_hdr.msg_control = NULL;
+                ch_send_buffer_info_group[ch_i].msgs[n].msg_hdr.msg_controllen = 0;
+            }
+
+            // Sets up iovecs and msgs for last packet
+            if(num_packets > 1) {
+                int n_last_packet = num_packets - 1;
+                ch_send_buffer_info_group[ch_i].iovecs[1+(2*n_last_packet)].iov_base = ch_send_buffer_info_group[ch_i].vrt_headers[n_last_packet].data();
+                ch_send_buffer_info_group[ch_i].iovecs[1+(2*n_last_packet)].iov_len = HEADER_SIZE;
+
+                ch_send_buffer_info_group[ch_i].iovecs[1+(2*n_last_packet)+1].iov_base = const_cast<void*>(ch_send_buffer_info_group[ch_i].sample_data_start_for_packet[n_last_packet]);
+                ch_send_buffer_info_group[ch_i].iovecs[1+(2*n_last_packet)+1].iov_len = samples_in_last_packet * _bytes_per_sample;
+
+                ch_send_buffer_info_group[ch_i].msgs[n_last_packet].msg_hdr.msg_iov = &ch_send_buffer_info_group[ch_i].iovecs[1+(2*n_last_packet)];
+                ch_send_buffer_info_group[ch_i].msgs[n_last_packet].msg_hdr.msg_iovlen = 2;
+
+                ch_send_buffer_info_group[ch_i].msgs[n_last_packet].msg_hdr.msg_name = NULL;
+                ch_send_buffer_info_group[ch_i].msgs[n_last_packet].msg_hdr.msg_namelen = 0;
+                ch_send_buffer_info_group[ch_i].msgs[n_last_packet].msg_hdr.msg_control = NULL;
+                ch_send_buffer_info_group[ch_i].msgs[n_last_packet].msg_hdr.msg_controllen = 0;
+            }
+        }
+
+        // Gets the start time for use in the timeout, uses CLOCK_MONOTONIC_COARSE because it is faster and precision doesn't matter for timeouts
+        // The time after which the call times out
+        struct timespec timeout_time;
+        clock_gettime(CLOCK_MONOTONIC_COARSE, &timeout_time);
+        int64_t timeout_s = (int64_t) timeout;
+        int64_t timeout_ns = (int64_t) ((timeout - timeout_s) * 1e9);
+        int64_t sum_ns = timeout_ns + timeout_time.tv_nsec;
+        int64_t carry = 0;
+        if(sum_ns > 1e9) {
+            sum_ns -= 1e9;
+            carry = 1;
+        }
+
+        // Add timeout with carry to current time
+        timeout_time.tv_nsec = sum_ns;
+        timeout_time.tv_sec = timeout_time.tv_sec + timeout_s + carry;
+
+        // Time at the end of the loop, used for checking timeouts
+        // Make sure it is set before calling continue within the loop
+        struct timespec current_time;
+
+        // Packets and samples sent for this call of this function
+        ssize_t packets_sent = 0;
+        ssize_t samples_sent = 0;
+
+        do {
+            // The number of packets to send in the next sendmmsg commmand on all channels
+            int packets_to_send_now = num_packets - packets_sent;
+
+            for(size_t ch_i = 0; ch_i < _NUM_CHANNELS; ch_i++) {
+                int packet_to_send_ch_i = check_fc_npackets(ch_i);
+                if(packets_to_send_now > packet_to_send_ch_i) {
+                    packets_to_send_now = packet_to_send_ch_i;
+                }
+            }
+
+            // If the packet to send is end of burst always send it regardless of the buffer level
+            if(is_eob_send) [[unlikely]] {
+                packets_to_send_now = 1;
+            }
+
+            // The buffer has enough samples, skip sending now
+            /* TODO: see if setting packets_to_send_now to 0 and no continue helps
+             * It may help by keeping sendmmsg related values in cache
+             */
+            if(packets_to_send_now < 0) {
+                // Update time for the timeout check
+                clock_gettime(CLOCK_MONOTONIC_COARSE, &current_time);
+
+                continue;
+            }
+
+            ssize_t packets_sent_now;
+
+            // Perform send if
+            // Packets are in the future (drop normal packets that would arrive to late)
+            // Always send start of burst or end of packets because they are needed for control
+            // Send packets without tsf since they don't have a set time
+            // Also ignore send time in blocking fc mode since it doesn't apply
+            if(
+                /* Packet is in the future*/ (int64_t)packet_header_infos[packets_sent].tsf >= ( _clock_sync->get_device_time().to_ticks(_TICK_RATE) + (int64_t)(drop_lead * _TICK_RATE) ) ||
+                /* Packet is start of burst */ packet_header_infos[packets_sent].sob ||
+                /* Packet is end of burst*/ packet_header_infos[packets_sent].eob ||
+                /* Packet does not have a timestamp*/ !packet_header_infos[packets_sent].has_tsf ||
+                /* Blocking flow control is in use */ use_blocking_fc
+            ) {
+                packets_sent_now = 0;
+
+                for(size_t ch_i = 0; ch_i < _NUM_CHANNELS; ch_i++) {
+                    // Send packets
+                    packets_sent_now = sendmmsg(send_sockets[ch_i], &ch_send_buffer_info_group[ch_i].msgs[packets_sent], packets_to_send_now, MSG_CONFIRM);
+
+                    // Record if an error occured
+                    // The performance impact of proper error handling is to large
+                    // Instead cache the first time an error occured for later
+                    if(packets_sent_now < 0 && sendmmsg_errno == 0) [[unlikely]] {
+                        sendmmsg_errno = errno;
+                        clock_gettime(CLOCK_MONOTONIC_COARSE, &sendmmsg_failure_time);
+                    }
+                }
+
+            // Drop packet to catch up. The dropped samples will be reported by the buffer level monitor
+            // TODO: find a better way that avoid confusion from silently dropping packets
+            } else {
+                // If packets and in the past, pretend the first packet of the set was sent
+                packets_sent_now = 1;
+            }
+
+            // Replace the -1 returned by sendmmsg on failure with the number of packets sent (0)
+            if(packets_sent_now < 0) [[unlikely]] {
+                packets_sent_now = 0;
+            }
+
+            // Add the amount of packets sent for this set of sendmmsg to the count
+            // This adds the last channel's count and assumes all channels sent correctly
+            // Assuming success is not ideal, but proper error handling will have too much of a performance impact
+            packets_sent += packets_sent_now;
+
+            // Calculate the number of samples sent in this send
+            // Every packet except the last of the command will be of max length
+            size_t samples_sent_now;
+            // The last packet of the burst was included
+            if(packets_sent == num_packets) {
+                samples_sent_now = ((packets_sent_now - 1) * _max_samples_per_packet) + samples_in_last_packet;
+
+            // This send did not send the last packet of the uhd send command, all packets are max length
+            } else {
+                samples_sent_now = packets_sent_now * _max_samples_per_packet;
+            }
+
+            // Add the samples sent from this sendmmsg to the total for this function
+            samples_sent += samples_sent_now;
+
+            for(size_t ch_i = 0; ch_i < _NUM_CHANNELS; ch_i++) {
+                ch_send_buffer_info_group[ch_i].buffer_level_manager.update((size_t) samples_sent_now);
+            }
+
+            // Get the current time for checking if a timeout occured
+            clock_gettime(CLOCK_MONOTONIC_COARSE, &current_time);
+
+        } while (
+            /* All packets were sent */ packets_sent < num_packets &&
+            /* Timed out*/ (current_time.tv_sec < timeout_time.tv_sec ||
+            (current_time.tv_sec == timeout_time.tv_sec && current_time.tv_nsec < timeout_time.tv_nsec))
+        );
+
+        // Updates the next timestamp to follow from the end of this send
+        if(metadata_.has_time_spec) {
+            next_send_time = metadata_.time_spec + time_spec_t::from_ticks(samples_sent, _sample_rate);
+        } else {
+            next_send_time = next_send_time + time_spec_t::from_ticks(samples_sent, _sample_rate);
+        }
+
+        // Increment the sequence number counter by the number of packets actually sent
+        next_sequence_number = (next_sequence_number + packets_sent) & 0xf;
+
+        // If a start of burst was requested and no samples were sent
+        if(metadata_.start_of_burst && !samples_sent) [[unlikely]] {
+            // Remove the sob time for this send from the list of start of bursts
+            for(auto& ch_send_buffer_info_i : ch_send_buffer_info_group) {
+                ch_send_buffer_info_i.buffer_level_manager.pop_back_start_of_burst_time();
+            }
+            // Add sob to cache to be used on the next attempt
+            cached_sob = true;
+            sob_time_cache = metadata_.time_spec;
+        }
+
+        // NOTE: samples_sent here will be non 0 because of the dummy samples, if dummy samples are removed we will need a new way of checking if packets were send
+        // Mark when an end of burst was sent
+        if(!is_eob_send) [[likely]] {
+            return samples_sent;
+        } else {
+            if(!samples_sent) {
+                // The EOB was not send, remove it from the list for buffer level calculations
+                for(auto& ch_send_buffer_info_i : ch_send_buffer_info_group) {
+                    ch_send_buffer_info_i.buffer_level_manager.pop_back_end_of_burst_time();
+                }
+            }
+            // EOB packets have a dummy sample, ignore them when reporting the number of samples sent
+            return 0;
+        }
+    }
+
+    /*!
+     * Validates that cpu_format/wire_format/wire_little_endian require no conversion.
+     * Called as part of the constructor, only in its own function to improve readability
+     * \param cpu_format datatype of samples on the host system (only sc16 and fc32)
+     * \param wire_format datatype of samples in the packets (only sc16)
+     * \param wire_little_endian data format in packets is little endian
+     * \throws std::invalid_argument if cpu_format != wire_format or wire_little_endian is false
+     */
+    void setup_converter(const std::string& cpu_format, const std::string& wire_format, bool wire_little_endian);
+
+};
+
+class send_packet_streamer_mmsg : public send_packet_handler_mmsg {
+public:
+    send_packet_streamer_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, const std::string& cpu_format, const std::string& wire_format, bool wire_little_endian, std::shared_ptr<uhd::usrp::clock_sync> clock_sync_info, std::vector<int> streaming_locks);
+
+    size_t get_num_channels(void) const {
+        return _NUM_CHANNELS;
+    }
+
+    size_t get_max_num_samps(void) const {
+        return _max_samples_per_packet;
+    }
+
+    // Makes sure the correct enable_blocking_fc is used instead of the one from send_packet_handler_mmsg
+    void enable_blocking_fc(uint64_t blocking_setpoint);
+
+    // Makes sure the correct disable_blocking_fc is used instead of the one from send_packet_handler_mmsg
+    void disable_blocking_fc();
+
+    void post_output_action(const std::shared_ptr<uhd::rfnoc::action_info>&, const size_t);
+};
+} // namespace sph
+} // namespace transport
+} // namespace uhd

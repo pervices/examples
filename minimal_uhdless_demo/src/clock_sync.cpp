@@ -1,0 +1,288 @@
+//
+// Copyright 2026 Per Vices Corporation
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+
+#include "../include/clock_sync.hpp"
+
+// For getting the time on the host
+#include "../include/system_time.hpp"
+
+// For printing error and warning messages
+#include <iostream>
+
+// For reducing the priority of the sync thread
+#include "../include/thread.hpp"
+
+using namespace uhd;
+using namespace uhd::usrp;
+
+static constexpr size_t padded_clock_sync_size = (size_t) ceil(sizeof(clock_sync) / (double)CACHE_LINE_SIZE) * CACHE_LINE_SIZE;
+
+//#define MEASURE_ACCURACY
+
+clock_sync::clock_sync(std::string ip, uint16_t port, double tick_rate)
+    :
+    _tick_rate(tick_rate)
+    {
+
+    // Configure PID
+
+    time_diff_pidc = uhd::pidc_tl(
+        0.0, // desired set point is 0.0s error
+        1.0, // measured K-ultimate occurs with Kp = 1.0, Ki = 0.0, Kd = 0.0
+        // measured P-ultimate is inverse of 1/2 the flow-control sample rate
+        2.0 / UPDATES_PER_SECOND
+    );
+
+    time_diff_pidc.set_error_filter_length( UPDATES_PER_SECOND );
+    time_diff_pidc.set_max_error_for_convergence( 10e-6 );
+
+    // Create port used to send/receive time diffs
+    sync_socket = transport::udp_simple::make_connected(ip, std::to_string(port));
+
+    sync_thread = std::thread(loop_thread_fn, this);
+}
+
+clock_sync::~clock_sync() {
+    sync_thread_should_exit.store(true, std::memory_order_relaxed);
+    sync_thread.join();
+}
+
+// Wait for convergence
+void clock_sync::wait_for_sync() {
+    for(
+        time_spec_t time_then = uhd::get_system_time(),
+            time_now = time_then
+            ;
+        (!is_synced())
+            ;
+        time_now = uhd::get_system_time()
+    ) {
+        if ( (time_now - time_then).get_full_secs() > 20 ) {
+            std::cout << "[CLOCK_SYNC] ERROR: Clock domain synchronization taking unusually long. Are there more than 1 applications controlling the device?" << std::endl;
+            throw std::runtime_error( "Clock domain synchronization taking unusually long. Are there more than 1 applications controlling the device?" );
+        }
+        ::usleep( 10000 );
+    }
+}
+
+bool clock_sync::time_diff_recv(time_diff_resp & reply) {
+
+    // Receive reply packet
+    size_t bytes_received = sync_socket->recv( &reply, sizeof(reply));
+
+    if(bytes_received > 0) {
+
+        // Swap byte order from big to native
+        // TODO: detect if we are using big or little endian at compile time, this currently assumes little endian
+        reply.tv_sec = __builtin_bswap64(reply.tv_sec);
+        reply.tv_tick = __builtin_bswap64(reply.tv_tick);
+        return true;
+
+    } else {
+        // Error, no packet received
+        return false;
+    }
+}
+
+void clock_sync::reset_time_diff_pid() {
+    // Fence to ensure nothing before getting the time and after sending the packet gets reordered that may impact timing
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+
+    uhd::time_spec_t reset_now = uhd::get_system_time();
+
+    struct time_diff_resp reset_tdr;
+
+    time_diff_send( reset_now );
+
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+
+    time_diff_recv( reset_tdr );
+
+    double new_offset = (double) reset_tdr.tv_sec + (reset_tdr.tv_tick /  _tick_rate);
+
+    time_diff_pidc.reset(reset_now, new_offset);
+}
+
+/// SoB Time Diff: feed the time diff error back into out control system
+void clock_sync::time_diff_process( const time_diff_resp & tdr, const uhd::time_spec_t & now ) {
+
+    static const double sp = 0.0;
+
+    double pv = (double) tdr.tv_sec + (tdr.tv_tick / _tick_rate);
+
+    time_spec_t cv = time_diff_pidc.update_control_variable( sp, pv, now );
+
+    bool reset_advised = false;
+
+    bool time_diff_converged = time_diff_pidc.is_converged( now, &reset_advised );
+
+    // We only update is_converged when it changes to avoid unnecessarily invalidating it and requiring the other core to fetch the new identical value
+    // Record that convergance was lost ASAP after it is lost
+    /**
+     * TODO: handle the case where clock sync is lost between when someone calls wait_for_sync and get_device_time
+     * Currently we rely on clock sync only being lost when time is adjusted
+     */
+    if(!time_diff_converged && is_converged.load(std::memory_order_relaxed)) [[unlikely]] {
+        is_converged.store(false, std::memory_order_release);
+    }
+
+    // For SoB, record the instantaneous time difference + compensation
+    if (time_diff_converged ) {
+        set_time_diff( cv );
+    }
+
+    // We only update is_converged when it changes to avoid unnecessarily invalidating it and requiring the other core to fetch the new identical value
+    // Record that convergance was gained
+    if(time_diff_converged && !is_converged) [[unlikely]] {
+        // Increment sync count so we know that this is a new sync
+        sync_count.fetch_add(1, std::memory_order_relaxed);
+
+        // Esnure the updated store is applied
+        is_converged.store(true, std::memory_order_release);
+    }
+
+    if(reset_advised) {
+        reset_time_diff_pid();
+    }
+}
+
+std::shared_ptr<clock_sync> clock_sync::make(std::string ip, uint16_t port, double tick_rate) {
+    // Create using placement new
+    clock_sync* raw_pointer = (clock_sync*) aligned_alloc(CACHE_LINE_SIZE, padded_clock_sync_size);
+    new (raw_pointer) clock_sync(ip, port, tick_rate);
+
+    std::shared_ptr<clock_sync> ptr(raw_pointer, deleter());
+
+    return ptr;
+}
+
+void clock_sync::set_clock_sync_desired(bool desired) {
+    clock_sync_desired.store(desired, std::memory_order_release);
+}
+
+void clock_sync::loop_thread_fn( clock_sync *self ) {
+#ifdef MEASURE_ACCURACY
+    // The worst difference between the predicted and actual device time while synced
+    static double worst_difference = 0;
+#endif
+
+    // Set thread priority to default since this isn't high priority
+    uhd::set_thread_priority_safe(0, false);
+
+    // Flag so that we only print the error message for failed recv once
+    bool dropped_recv_message_printed = false;
+    bool reply_failed = false;
+
+    uhd::time_spec_t host_control_time, then, dt;
+    struct timespec req, rem;
+
+    struct time_diff_resp tdr;
+
+    //Get initial offset
+    self->reset_time_diff_pid();
+
+    for(
+        host_control_time = uhd::get_system_time(),
+        then = host_control_time + UPDATE_PERIOD
+        ;
+
+        ! self->sync_thread_should_exit.load(std::memory_order_relaxed)
+        ;
+
+        then += UPDATE_PERIOD,
+        host_control_time = uhd::get_system_time()
+    ) {
+        dt = then - host_control_time;
+        if ( dt > 0.0 ) {
+            // Wait until its time for the next sync packet if its in the future
+            req.tv_sec = dt.get_full_secs();
+            req.tv_nsec = dt.get_frac_secs() * 1e9;
+            nanosleep( &req, &rem );
+        } else {
+            // Skip this request if we are late
+            continue;
+        }
+
+        if(
+            // Skip this round if a previous one failed and clock sync is not needed
+            (reply_failed && !self->clock_sync_desired.load(std::memory_order_relaxed))
+            ||
+            // Skip this round if the time is currently being set since we are about to need to reset anyway
+            self->set_time_in_progress
+        ) {
+            continue;
+        }
+
+        if(self->is_resync_requested()) {
+            uhd::time_spec_t zero_time(0.0);
+
+            self->time_diff_send( zero_time );
+
+            bool current_time_received =  self->time_diff_recv( tdr );
+
+            /**
+             * The seconds part of time on the FPGA updates on a 1 second clock regardless of what the tick count is.
+             * Therefore the time between last_time_set_seconds and last_time_set_seconds + 1 will be less than 1 second.
+             * To avoid the clock jump do not sync until after last_time_set_seconds + 1
+             */
+            if(-tdr.tv_sec < self->last_time_set_seconds.load() + 1 || !current_time_received) {
+                continue;
+            }
+
+
+            // Record that the resync request has been ackcknowledged (also sets it as desynced)
+            self->resync_acknowledge();
+            // Reset PID to clear old values
+            self->reset_time_diff_pid();
+        }
+
+        time_spec_t time_diff = self->time_diff_pidc.get_control_variable();
+
+        // Start of fence to ensure that nothing get's reordered between getting the system time and sending the prediction
+        std::atomic_thread_fence(std::memory_order_seq_cst);
+
+        // The time of the host when the time on device was predicted
+        uhd::time_spec_t host_prediction_time = uhd::get_system_time();
+
+        // The time we predict the device to have
+        uhd::time_spec_t device_predicted_time = host_prediction_time + time_diff;
+
+        // Send the predicted time
+        self->time_diff_send( device_predicted_time );
+
+        // End of fenced area to prevent reordering
+        std::atomic_thread_fence(std::memory_order_seq_cst);
+
+        // Get the predicted time minus the actual time
+        bool reply_good =  self->time_diff_recv( tdr );
+
+        // Update flag used to track if clock sync is working
+        reply_failed = !reply_good;
+
+        if (reply_good) {
+            self->time_diff_process( tdr, host_prediction_time );
+
+#ifdef MEASURE_ACCURACY
+            if(self->is_synced()) {
+                double difference = tdr.tv_sec + ( tdr.tv_tick / self->_tick_rate );
+                worst_difference = std::max(difference, worst_difference);
+            }
+#endif
+
+        // Print error message if clock sync matters and we haven't already done so
+        } else if (!dropped_recv_message_printed && self->clock_sync_desired) {
+            std::cout << "[CLOCK_SYNC] ERROR: Failed to receive packet used by clock synchronization" << std::endl;
+                dropped_recv_message_printed = true;
+        }
+    }
+#ifdef MEASURE_ACCURACY
+    // 81us = 20% of a 65536 buffer at 162.5Msps (Crimson)
+    // 26us = 20% of a 131072 buffer at 1Gsps (noDDR Cyan)
+    // 8.7us = 20% of a 131072 buffer at 3Gsps (noDDR Cyan)
+    // 1.8ms = 20% of a 4608000 buffer at 500Msps (Chestnut)
+    std::cout << "[CLOCK_SYNC] INFO: The worst prediction while synced was: " << worst_difference << std::endl;
+#endif
+}
