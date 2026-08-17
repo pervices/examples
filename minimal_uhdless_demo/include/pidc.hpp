@@ -48,7 +48,6 @@
 			i( 0.0 ),
 			// initialize the control variable to be equal to the set point, so error is initially zero
 			cv( 0.0 ),
-			sp( sp ),
             DERIVATE_MIN_FREQUENCY(derivative_filter_frequency),
 			offset( 0.0 ),
 			last_time( 0.0 ),
@@ -56,6 +55,7 @@
 			converged( false ),
 			max_error_for_divergence( DEFAULT_MAX_ERROR_FOR_DIVERGENCE )
 		{
+			(void) sp;
 			const std::string s[] = { "Kp", "Ki", "Kd" };
 			const double K[] = { Kp, Ki, Kd };
 			for( unsigned i = 0; i < sizeof( K ) / sizeof( K[ 0 ] ); i++ ) {
@@ -80,7 +80,6 @@
 				return cv;
 			}
 
-			this->sp = sp;
 			e = sp - pv;
 
             if(e > INSTANTENOUS_MAX_ERROR_FOR_DIVERGENCE) {
@@ -180,7 +179,6 @@
 		double e; // error memory
 		double i; // integral memory
 		double cv; // output memory
-		double sp; // setpoint
         double previous_filtered_derivated = 0; // derivative memory
         double DERIVATE_MIN_FREQUENCY; // Cutoff frequency of the derivative gain
 

@@ -18,9 +18,6 @@ public:
     bool priming_message_printed = false;
 #endif
 
-    // Target buffer level
-	const int64_t nominal_buffer_level;
-
 	void set_sample_rate( const double rate );
 
     void set_start_of_burst_time( const time_spec_t & sob );
@@ -37,7 +34,6 @@ public:
     buffer_tracker( const int64_t targer_buffer_level, const double rate );
 
 private:
-    bool sob_reset = false;
     double nominal_sample_rate = 0;
 
     // Total number of samples sent, will roll over
@@ -47,7 +43,6 @@ private:
     // Time when the unit begins transmitting (start of burst)
     // Used as a reference point for basing other calculations off of
     bool first_sob_set = false;
-    time_spec_t first_sob_time;
 
     // Stores times start and end times of periods where no samples are sent
     std::vector<time_spec_t> blank_period_start = {time_spec_t(0.0)};

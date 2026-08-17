@@ -97,10 +97,6 @@ private:
     // internal function for tokenizing the inputs
     void parse(std::vector<std::string> &tokens, char* data, size_t const data_len, const char delim);
 
-    //used in send/recv
-    uint32_t _ctrl_seq_num;
-    uint32_t _protocol_compat;
-
     // buffer for in and out
     char _buff[ MAX_MTU_SIZE ];
 };

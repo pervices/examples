@@ -12,9 +12,7 @@ void buffer_tracker::set_sample_rate( const double rate ) {
 // Sets the time when this burst ends
 void buffer_tracker::set_start_of_burst_time( const time_spec_t & sob ) {
     blank_period_stop.push_back(sob);
-    if(first_sob_set) {
-    } else {
-        first_sob_time = sob;
+    if(!first_sob_set) {
         first_sob_set = true;
     }
 }
@@ -86,8 +84,8 @@ void buffer_tracker::update( const uint64_t samples_sent ) {
 
 buffer_tracker::buffer_tracker( const int64_t targer_buffer_level, const double rate )
 :
-nominal_buffer_level( targer_buffer_level ),
 nominal_sample_rate( rate ),
 blanked_time(0.0)
 {
+    (void) targer_buffer_level;
 }

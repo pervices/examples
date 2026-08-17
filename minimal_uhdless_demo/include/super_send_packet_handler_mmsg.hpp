@@ -97,14 +97,6 @@ protected:
     const size_t _NUM_CHANNELS;
 
     /**
-     * Which physical channel coresponds each index in the list of channels the user provided.
-     * Example: The user requests channels 6, 2, 4. Then _channels = {6, 2, 4}.
-     * Within this class "channel" refers the physical channel.
-     * channel index refers the the index in the list provided
-     */
-    size_t _channels[MAX_CHANNELS] = {};
-
-    /**
      * Start of pointers that are constant but point to non const data.
      * The pointers follow the same rules as non pointer variables, but accessing the data requires special care.
      */
@@ -207,7 +199,7 @@ public:
      * Make a new packet handler for send
      * \param buffer_size size of the buffer on the unit
      */
-    send_packet_handler_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, bool wire_little_endian, std::shared_ptr<clock_sync> clock_sync_info_owner);
+    send_packet_handler_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, std::shared_ptr<clock_sync> clock_sync_info_owner);
 
     ~send_packet_handler_mmsg(void);
 

@@ -22,7 +22,7 @@
 #include <sys/ioctl.h>
 #include <net/if.h>
 
-send_packet_handler_mmsg::send_packet_handler_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, bool wire_little_endian, std::shared_ptr<clock_sync> clock_sync_info_owner)
+send_packet_handler_mmsg::send_packet_handler_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, std::shared_ptr<clock_sync> clock_sync_info_owner)
     // Ensure max_samples_per_packet is a multiple of the number of samples allowed per packet
     :
     _DEVICE_TARGET_NSAMPS(device_target_nsamps),
@@ -35,10 +35,6 @@ send_packet_handler_mmsg::send_packet_handler_mmsg(const std::vector<size_t>& ch
     _clock_sync(clock_sync_info_owner.get()),
     _clock_sync_owner(clock_sync_info_owner)
 {
-    // Copy provided channel list vector to internal channel list
-    std::copy(channels.begin(), channels.end(), _channels);
-
-
     ch_send_buffer_info_group = std::vector<ch_send_buffer_info>(_NUM_CHANNELS, ch_send_buffer_info(0, HEADER_SIZE, _bytes_per_sample * (_DEVICE_PACKET_NSAMP_MULTIPLE - 1), _DEVICE_TARGET_NSAMPS, _sample_rate));
 
     // Creates and binds to sockets

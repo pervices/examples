@@ -52,7 +52,6 @@ int main() {
             /* Target buffer level */ (int64_t) (buffer_size * 0.5),
             packet_size_multiple,
             tick_rate,
-            /* Always use little endian data to match the host*/ true,
             clock_sync_manager
         );
 

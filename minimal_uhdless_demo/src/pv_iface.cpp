@@ -30,9 +30,7 @@ static uint32_t seq = 1;
 /***********************************************************************
  * Structors
  **********************************************************************/
-pv_iface::pv_iface(const std::string& addr, const uint16_t udp_port):
-    _ctrl_seq_num(0),
-    _protocol_compat(0)
+pv_iface::pv_iface(const std::string& addr, const uint16_t udp_port)
 {
     memset( _buff, '\0', sizeof( _buff ) );
 

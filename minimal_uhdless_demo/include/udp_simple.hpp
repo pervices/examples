@@ -18,10 +18,6 @@ public:
 
     virtual ~udp_simple(void) = 0;
 
-    //! The maximum number of bytes per udp packet.
-    static const size_t mtu = 1500 - 20 - 8; // default ipv4 mtu - ipv4 header - udp
-                                             // header
-
     /*!
      * Make a new connected udp transport:
      * This transport is for sending and receiving
