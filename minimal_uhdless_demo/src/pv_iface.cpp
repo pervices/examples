@@ -33,21 +33,14 @@ static uint32_t seq = 1;
 /***********************************************************************
  * Structors
  **********************************************************************/
-pv_iface::pv_iface(const std::vector<std::string>& addrs, const uint16_t udp_port):
+pv_iface::pv_iface(const std::string& addr, const uint16_t udp_port):
     _ctrl_seq_num(0),
     _protocol_compat(0)
 {
     memset( _buff, '\0', sizeof( _buff ) );
 
-    // Verfify the user only specified one IP (since we only support one IP at this time)
-    if(addrs.size() > 1) {
-        throw std::invalid_argument("Multiple management IPs were requested but we only support using one at a time");
-    } else if(addrs.size() == 0) {
-        throw std::invalid_argument("No management IPs specified");
-    }
-
     // Initialize the UDP connection with the server
-    udp_transport = udp_simple::make_connected(addrs[0], std::to_string(udp_port));
+    udp_transport = udp_simple::make_connected(addr, std::to_string(udp_port));
 
     // Get the management port used to ask for a TCP connection
     int tcp_port;
@@ -64,7 +57,7 @@ pv_iface::pv_iface(const std::vector<std::string>& addrs, const uint16_t udp_por
         throw std::invalid_argument("Invalid tcp management IP: " + std::to_string(tcp_port));
     }
 
-    tcp_connection = new tcp_simple(addrs[0], (uint16_t) tcp_port);
+    tcp_connection = new tcp_simple(addr, (uint16_t) tcp_port);
 }
 
 pv_iface::~pv_iface() {
@@ -246,13 +239,6 @@ time_spec_t pv_iface::get_time_spec(std::string req) {
 
 void pv_iface::set_time_spec( const std::string pre, time_spec_t value ) {
     set_double(pre, value.get_real_secs());
-}
-
-/***********************************************************************
- * Public make function for pv_iface
- **********************************************************************/
-pv_iface::sptr pv_iface::make(const std::vector<std::string>& addrs, const uint16_t udp_port) {
-    return std::shared_ptr<pv_iface>(new pv_iface(addrs, udp_port));
 }
 
 /***********************************************************************
