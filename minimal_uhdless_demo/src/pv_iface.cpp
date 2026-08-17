@@ -25,9 +25,6 @@
 
 #define PV_IFACE_DEBUG_NAME_C "PV_IFACE"
 
-using namespace uhd;
-using namespace uhd::transport;
-
 static uint32_t seq = 1;
 
 /***********************************************************************

@@ -11,8 +11,6 @@
 #include <sstream>
 #include <string>
 
-using namespace uhd;
-
 /***********************************************************************
  * metadata
  * (tx_metadata_t's constructor is defined here rather than alongside

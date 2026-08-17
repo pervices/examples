@@ -5,8 +5,6 @@
 
 #include <deque>
 
-namespace uhd {
-
 	// Simple, Moving Average
 	// See https://en.wikipedia.org/wiki/Moving_average#Simple_moving_average
 
@@ -66,7 +64,5 @@ namespace uhd {
 		std::deque<double> X;
 		double avg;
 	};
-
-} // namespace uhd
 
 #endif /* INCLUDED_UHD_UTILS_SMA_HPP */

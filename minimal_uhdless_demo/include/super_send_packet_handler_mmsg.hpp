@@ -25,19 +25,18 @@
 #define MIN_MTU 9000
 
 // Only the pointer type is needed here (post_output_action never touches the
-// pointee); the full definition lives in uhd/rfnoc/actions.hpp, which isn't
+// pointee); the full definition lived in uhd/rfnoc/actions.hpp, which isn't
 // otherwise used by this demo.
-namespace uhd { namespace rfnoc { struct action_info; } }
+struct action_info;
 
-namespace uhd {
-namespace transport {
-namespace sph {
     // Socket priority for tx sockets
     // Highest possible thread priority without CAP_NET_ADMIN
     const int TX_SO_PRIORITY = 6;
 
     // Cache line size on AMD64 CPUs
-    static constexpr size_t CACHE_LINE_SIZE = 64;
+    // (CACHE_LINE_SIZE itself now comes from clock_sync.hpp, included above -
+    // it used to be a separate constant in the now-removed uhd::transport::sph
+    // namespace, distinct from uhd::usrp's; now that namespaces are gone, reuse it)
 
     // Highest number of tx channels a streamer can support
     // (duplicated as a private constant in send_packet_handler_mmsg below;
@@ -45,7 +44,7 @@ namespace sph {
     static constexpr uint_fast8_t MAX_CHANNELS = 16;
 
     // Typedef for a pointer to a single, or a collection of send buffers
-    // (formerly uhd::ref_vector<const void*>, from uhd/stream.hpp / ref_vector.hpp)
+    // (formerly ref_vector<const void*>, from uhd/stream.hpp / ref_vector.hpp)
     typedef std::array<const void*, MAX_CHANNELS> buffs_type;
 
 /***********************************************************************
@@ -137,7 +136,7 @@ protected:
 
 protected:
     // Raw pointer to clock sync to avoid smart pointer overhead/false sharing
-    uhd::usrp::clock_sync* const _clock_sync;
+    clock_sync* const _clock_sync;
 
     /**
      * Start of variables that are only written by the main sending thread.
@@ -147,7 +146,7 @@ protected:
 private:
     // The start time of the next batch of samples in ticks
     // The FPGA requires a timestampt always be present in packets. This is used to figureout the timestamp when not specified by the user
-    uhd::time_spec_t next_send_time = uhd::time_spec_t(0.0);
+    time_spec_t next_send_time = time_spec_t(0.0);
 
     // Number of samples cached between sends to account for _DEVICE_PACKET_NSAMP_MULTIPLE restriction
     size_t nsamps_in_cache = 0;
@@ -172,7 +171,7 @@ private:
      * This exists solely to maintian ownership.
      * Actual access to the class should be done through _clock_sync for avoiding false sharing
      */
-    alignas(CACHE_LINE_SIZE) std::shared_ptr<uhd::usrp::clock_sync> _clock_sync_owner;
+    alignas(CACHE_LINE_SIZE) std::shared_ptr<clock_sync> _clock_sync_owner;
 
     /**
      * Start of variables that require more complex refactoring than planned for the first stage of anti false sharing
@@ -180,7 +179,7 @@ private:
      */
 
     // Header info for each packet, the VITA (not UDP) header is the same for every channel
-    std::vector<vrt::if_packet_info_t> packet_header_infos;
+    std::vector<if_packet_info_t> packet_header_infos;
 
 private:
 
@@ -238,7 +237,7 @@ public:
      * Make a new packet handler for send
      * \param buffer_size size of the buffer on the unit
      */
-    send_packet_handler_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, const std::string& cpu_format, const std::string& wire_format, bool wire_little_endian, std::shared_ptr<uhd::usrp::clock_sync> clock_sync_info_owner, std::vector<int> streaming_locks);
+    send_packet_handler_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, const std::string& cpu_format, const std::string& wire_format, bool wire_little_endian, std::shared_ptr<clock_sync> clock_sync_info_owner, std::vector<int> streaming_locks);
 
     ~send_packet_handler_mmsg(void);
 
@@ -251,7 +250,7 @@ private:
     // Used to cache start of burst from a send that sent no data so it can be added to the next iteration
     // TODO: verify we should be caching. It seems wierd that we cache it from a failed attempt instead of the user keeping the flag in their next send
     bool cached_sob = false;
-    uhd::time_spec_t sob_time_cache;
+    time_spec_t sob_time_cache;
 
 public:
 
@@ -266,7 +265,7 @@ protected:
      * packet_buff: buffer to write vrt data to
      * if_packet_info: packet info to be used to calculate the header
      ******************************************************************/
-    virtual void if_hdr_pack(uint32_t* packet_buff, vrt::if_packet_info_t& if_packet_info) = 0;
+    virtual void if_hdr_pack(uint32_t* packet_buff, if_packet_info_t& if_packet_info) = 0;
 
     // Sends a request for the buffer level from the device, returns the result of that request
     virtual int64_t get_buffer_level_from_device(const size_t ch_i) = 0;
@@ -280,7 +279,7 @@ private:
     // Gets the number of samples that can be sent now (can be less than 0)
     int check_fc_npackets(const size_t ch_i);
 
-    void send_eob_packet(const uhd::tx_metadata_t &metadata, double timeout);
+    void send_eob_packet(const tx_metadata_t &metadata, double timeout);
 
     int get_mtu(int socket_fd, std::string ip);
 
@@ -289,7 +288,7 @@ public:
     inline size_t send(
         const buffs_type &sample_buffs,
         const size_t nsamps_to_send,
-        const uhd::tx_metadata_t &metadata,
+        const tx_metadata_t &metadata,
         const double timeout
     ) {
         size_t previous_nsamps_in_cache = nsamps_in_cache;
@@ -318,7 +317,7 @@ public:
             dropped_nsamps_in_cache = 0;
         }
 
-        uhd::tx_metadata_t modified_metadata = metadata;
+        tx_metadata_t modified_metadata = metadata;
         if(cached_sob) {
             cached_sob = false;
             modified_metadata.start_of_burst = true;
@@ -404,7 +403,7 @@ private:
     inline size_t send_multiple_packets(
         const buffs_type &sample_buffs,
         const size_t nsamps_to_send,
-        const uhd::tx_metadata_t &metadata_,
+        const tx_metadata_t &metadata_,
         const double timeout,
         // TODO: split sending the eob packets into their own function to be less spaghetti
         // Call this function for sending eob packet (which only contains dummy samples)
@@ -427,7 +426,7 @@ private:
         }
 
         for(int n = 0; n < num_packets; n++) {
-            packet_header_infos[n].packet_type = vrt::if_packet_info_t::PACKET_TYPE_DATA;
+            packet_header_infos[n].packet_type = if_packet_info_t::PACKET_TYPE_DATA;
             packet_header_infos[n].packet_count = (next_sequence_number + n) & 0xf;
             packet_header_infos[n].has_sid = false;
             packet_header_infos[n].has_sid = false;
@@ -713,7 +712,7 @@ private:
 
 class send_packet_streamer_mmsg : public send_packet_handler_mmsg {
 public:
-    send_packet_streamer_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, const std::string& cpu_format, const std::string& wire_format, bool wire_little_endian, std::shared_ptr<uhd::usrp::clock_sync> clock_sync_info, std::vector<int> streaming_locks);
+    send_packet_streamer_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, const std::string& cpu_format, const std::string& wire_format, bool wire_little_endian, std::shared_ptr<clock_sync> clock_sync_info, std::vector<int> streaming_locks);
 
     size_t get_num_channels(void) const {
         return _NUM_CHANNELS;
@@ -729,8 +728,5 @@ public:
     // Makes sure the correct disable_blocking_fc is used instead of the one from send_packet_handler_mmsg
     void disable_blocking_fc();
 
-    void post_output_action(const std::shared_ptr<uhd::rfnoc::action_info>&, const size_t);
+    void post_output_action(const std::shared_ptr<action_info>&, const size_t);
 };
-} // namespace sph
-} // namespace transport
-} // namespace uhd

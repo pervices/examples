@@ -10,8 +10,6 @@
 #include <cstring>
 #include <atomic>
 
-namespace uhd {
-
     /**
      * Fast single writer multiple reader interface for arbitary structs
      *
@@ -120,5 +118,3 @@ namespace uhd {
         // Delete move assignment
         swmr& operator=(swmr&&) = delete;
     };
-
-} // namepspace uhd

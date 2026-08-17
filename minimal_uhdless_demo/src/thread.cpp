@@ -23,7 +23,7 @@ static void check_priority_range(float priority)
     }
 }
 
-void uhd::set_thread_priority(float priority, bool realtime)
+void set_thread_priority(float priority, bool realtime)
 {
     if (realtime) {
         // Shift priority range so pseudo realtime threading can always be higher
@@ -42,7 +42,7 @@ void uhd::set_thread_priority(float priority, bool realtime)
     }
 }
 
-void uhd::set_thread_priority_non_realtime(float priority)
+void set_thread_priority_non_realtime(float priority)
 {
     int target_niceness = -(int)std::round(priority * 20);
     // Niceness is in a range of -20 to 19, to keep priority 0 as neutral the value is mapped to -20 to 20 then capped
@@ -87,7 +87,7 @@ void uhd::set_thread_priority_non_realtime(float priority)
     }
 }
 
-bool uhd::set_thread_priority_safe(float priority, bool realtime)
+bool set_thread_priority_safe(float priority, bool realtime)
 {
     try {
         set_thread_priority(priority, realtime);

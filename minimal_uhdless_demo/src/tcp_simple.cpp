@@ -17,8 +17,6 @@
 #include <unistd.h>
 #include <poll.h>
 
-namespace uhd { namespace transport {
-
 tcp_simple::tcp_simple(const std::string& addr, const uint16_t port) {
 
     // Struct containing info used to generate
@@ -116,7 +114,7 @@ size_t tcp_simple::recv(void* buff, size_t size, double timeout) {
         ts_timeout.tv_sec = (time_t) timeout;
         ts_timeout.tv_nsec = (long) ((timeout - ts_timeout.tv_sec) * 1000000000);
 
-        uhd::time_spec_t start = uhd::get_system_time();
+        time_spec_t start = get_system_time();
 
         recv_ready = ppoll(pfds, 1, &ts_timeout, NULL);
 
@@ -126,7 +124,7 @@ size_t tcp_simple::recv(void* buff, size_t size, double timeout) {
 
         // ppoll was interrupted, reduce timeout then try again
         } else if(errno == EINTR) {
-            uhd::time_spec_t end = uhd::get_system_time();
+            time_spec_t end = get_system_time();
 
             timeout = timeout - (start - end).get_real_secs();
 
@@ -177,5 +175,3 @@ size_t tcp_simple::recv(void* buff, size_t size, double timeout) {
         return bytes_received;
     }
 }
-
-}}

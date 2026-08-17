@@ -23,11 +23,7 @@
 #include <net/if.h>
 #include <sys/file.h>
 
-namespace uhd {
-namespace transport {
-namespace sph {
-
-send_packet_handler_mmsg::send_packet_handler_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, const std::string& cpu_format, const std::string& wire_format, bool wire_little_endian, std::shared_ptr<uhd::usrp::clock_sync> clock_sync_info_owner, std::vector<int> streaming_locks)
+send_packet_handler_mmsg::send_packet_handler_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, const std::string& cpu_format, const std::string& wire_format, bool wire_little_endian, std::shared_ptr<clock_sync> clock_sync_info_owner, std::vector<int> streaming_locks)
     // Ensure max_samples_per_packet is a multiple of the number of samples allowed per packet
     :
     _DEVICE_TARGET_NSAMPS(device_target_nsamps),
@@ -189,7 +185,7 @@ int send_packet_handler_mmsg::check_fc_npackets(const size_t ch_i) {
     if(!use_blocking_fc) [[likely]] {
 
         // Get the buffer level on the unit
-        uhd::time_spec_t device_time = _clock_sync->get_device_time();
+        time_spec_t device_time = _clock_sync->get_device_time();
         int64_t buffer_level = ch_send_buffer_info_group[ch_i].buffer_level_manager.get_buffer_level(device_time);
 
         int num_packets_to_send = (int) std::ceil((_DEVICE_TARGET_NSAMPS - buffer_level) / ((double)_max_samples_per_packet));
@@ -202,7 +198,7 @@ int send_packet_handler_mmsg::check_fc_npackets(const size_t ch_i) {
     }
 }
 
-void send_packet_handler_mmsg::send_eob_packet(const uhd::tx_metadata_t &metadata, double timeout) {
+void send_packet_handler_mmsg::send_eob_packet(const tx_metadata_t &metadata, double timeout) {
 
     // How many dummy samples to send in the eob
     constexpr size_t dummy_samples_in_eob = 1;
@@ -217,7 +213,7 @@ void send_packet_handler_mmsg::send_eob_packet(const uhd::tx_metadata_t &metadat
     // Clear cached sob flag, to handle edge case of where user sends 0 sample sob, followed by eob
     cached_sob = false;
 
-    uhd::tx_metadata_t eob_md = metadata;
+    tx_metadata_t eob_md = metadata;
     // Clears start of burst flag
     eob_md.start_of_burst = false;
     // Sets the eof time so buffer tracking can account for time between sob and eob
@@ -303,8 +299,8 @@ void send_packet_handler_mmsg::setup_converter(const std::string& cpu_format, co
 }
 
 
-send_packet_streamer_mmsg::send_packet_streamer_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, const std::string& cpu_format, const std::string& wire_format, bool wire_little_endian, std::shared_ptr<uhd::usrp::clock_sync> clock_sync_info, std::vector<int> streaming_locks):
-sph::send_packet_handler_mmsg(channels, max_samples_per_packet, device_buffer_size, dst_ips, dst_ports, device_target_nsamps, device_packet_nsamp_multiple, tick_rate, cpu_format, wire_format, wire_little_endian, clock_sync_info, streaming_locks)
+send_packet_streamer_mmsg::send_packet_streamer_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, const std::string& cpu_format, const std::string& wire_format, bool wire_little_endian, std::shared_ptr<clock_sync> clock_sync_info, std::vector<int> streaming_locks):
+send_packet_handler_mmsg(channels, max_samples_per_packet, device_buffer_size, dst_ips, dst_ports, device_target_nsamps, device_packet_nsamp_multiple, tick_rate, cpu_format, wire_format, wire_little_endian, clock_sync_info, streaming_locks)
 {
 }
 
@@ -317,11 +313,7 @@ void send_packet_streamer_mmsg::disable_blocking_fc() {
     send_packet_handler_mmsg::disable_blocking_fc();
 }
 
-void send_packet_streamer_mmsg::post_output_action(const std::shared_ptr<uhd::rfnoc::action_info>&, const size_t)
+void send_packet_streamer_mmsg::post_output_action(const std::shared_ptr<action_info>&, const size_t)
 {
     throw std::logic_error("post_output_action is not implemented for this device");
 }
-
-} // namespace sph
-} // namespace transport
-} // namespace uhd

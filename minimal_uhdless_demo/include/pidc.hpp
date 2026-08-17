@@ -18,8 +18,6 @@
 #include "time_spec.hpp"
 #include "sma.hpp"
 
-namespace uhd {
-
 	class pidc {
 
 	public:
@@ -75,7 +73,7 @@ namespace uhd {
 
 		virtual ~pidc() {}
 
-		time_spec_t update_control_variable( const double sp, const double pv, const uhd::time_spec_t &now ) {
+		time_spec_t update_control_variable( const double sp, const double pv, const time_spec_t &now ) {
 			// XXX: @CF: Use "velocity algorithm" form?
 			// https://en.wikipedia.org/wiki/PID_controller#Discrete_implementation
 			// Possibly better to not use the velocity algorithm form to avoid several opportunities for numerical instability
@@ -120,12 +118,12 @@ namespace uhd {
 			return cv - offset;
 		}
 
-		uhd::time_spec_t get_last_time() {
+		time_spec_t get_last_time() {
 			return last_time;
 		}
 
 		// XXX: @CF: should only be used in the case where last time is not necessarily when the pidc constructor was called
-		void set_last_time( const uhd::time_spec_t &t ) {
+		void set_last_time( const time_spec_t &t ) {
 			last_time = t;
 		}
 
@@ -142,7 +140,7 @@ namespace uhd {
 			}
 		}
 
-		void reset( const uhd::time_spec_t &time, const double offset ) {
+		void reset( const time_spec_t &time, const double offset ) {
             i = 0;
             cv = 0;
             this->offset = offset;
@@ -155,7 +153,7 @@ namespace uhd {
 		// Reset offset is the new offset to use if time diff exceeds the error limit
 		// time: current time on host system
 		// reset_advised: flag indicating that clocks are diverged to the point where it is is better to reset clock sync than continue
-		bool is_converged( const uhd::time_spec_t &time, bool *reset_advised ) {
+		bool is_converged( const time_spec_t &time, bool *reset_advised ) {
 
 			double filtered_error;
 
@@ -221,14 +219,14 @@ namespace uhd {
 
 		time_spec_t offset; //time offset
 
-		uhd::time_spec_t last_time;
-		uhd::time_spec_t last_status_time;
+		time_spec_t last_time;
+		time_spec_t last_status_time;
 
 		bool converged;
 		double max_error_for_divergence;
-		uhd::sma error_filter;
+		sma error_filter;
 
-		static void print_pid_status( uhd::time_spec_t t, double cv, double pv ) {
+		static void print_pid_status( time_spec_t t, double cv, double pv ) {
 #ifdef DEBUG_PIDC
 			std::cerr
 				<< "t: " << std::fixed << std::setprecision(6) << t << ", "
@@ -263,8 +261,6 @@ namespace uhd {
 #endif
 		}
 	};
-
-} // namespace uhd
 
 #include "pidc_tl.hpp"
 

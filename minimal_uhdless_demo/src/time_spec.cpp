@@ -9,8 +9,6 @@
 #include <cmath>
 #include <time.h>
 
-using namespace uhd;
-
 /***********************************************************************
  * Time spec constructors
  **********************************************************************/
@@ -121,13 +119,13 @@ time_spec_t& time_spec_t::operator-=(double& rhs)
     return *this;
 }
 
-bool uhd::operator==(const time_spec_t& lhs, const time_spec_t& rhs)
+bool operator==(const time_spec_t& lhs, const time_spec_t& rhs)
 {
     return lhs.get_full_secs() == rhs.get_full_secs()
            and lhs.get_frac_secs() == rhs.get_frac_secs();
 }
 
-bool uhd::operator<(const time_spec_t& lhs, const time_spec_t& rhs)
+bool operator<(const time_spec_t& lhs, const time_spec_t& rhs)
 {
     return ((lhs.get_full_secs() < rhs.get_full_secs())
             or ((lhs.get_full_secs() == rhs.get_full_secs())

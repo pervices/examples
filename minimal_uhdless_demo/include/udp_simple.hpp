@@ -11,9 +11,6 @@
 #include <memory>
 #include <string>
 
-
-namespace uhd { namespace transport {
-
 class udp_simple
 {
 public:
@@ -71,5 +68,3 @@ public:
      */
     virtual std::string get_send_addr(void) = 0;
 };
-
-}} // namespace uhd::transport

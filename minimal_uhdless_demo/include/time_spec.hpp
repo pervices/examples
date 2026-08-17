@@ -10,8 +10,6 @@
 #include <stdint.h>
 #include <boost/operators.hpp>
 
-namespace uhd {
-
 /*!
  * A time_spec_t holds a seconds and a fractional seconds time value.
  * Depending upon usage, the time_spec_t can represent absolute times,
@@ -132,5 +130,3 @@ inline double time_spec_t::get_frac_secs(void) const
 {
     return this->_frac_secs;
 }
-
-} // namespace uhd

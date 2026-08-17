@@ -2,8 +2,6 @@
 
 #include "../include/buffer_tracker.hpp"
 
-namespace uhd { namespace transport {
-
 // Used to track the buffer level
 // Everything else should only be called from the same thread
 
@@ -12,12 +10,12 @@ void buffer_tracker::set_sample_rate( const double rate ) {
 }
 
 // Returns true if waiting for start time
-bool buffer_tracker::start_of_burst_pending( const uhd::time_spec_t & now ) {
+bool buffer_tracker::start_of_burst_pending( const time_spec_t & now ) {
     return now < first_sob_time;
 }
 
 // Sets the time when this burst ends
-void buffer_tracker::set_start_of_burst_time( const uhd::time_spec_t & sob ) {
+void buffer_tracker::set_start_of_burst_time( const time_spec_t & sob ) {
     blank_period_stop.push_back(sob);
     if(first_sob_set) {
     } else {
@@ -32,7 +30,7 @@ void buffer_tracker::pop_back_start_of_burst_time() {
 }
 
 // Sets the time when streaming begins
-void buffer_tracker::set_end_of_burst_time( const uhd::time_spec_t & eob ) {
+void buffer_tracker::set_end_of_burst_time( const time_spec_t & eob ) {
     // Skip setting eob time if no sob has been issued
     if(!first_sob_set) {
         return;
@@ -46,7 +44,7 @@ void buffer_tracker::pop_back_end_of_burst_time() {
 }
 
 // Gets the predicted buffer level at the time requested
-int64_t buffer_tracker::get_buffer_level( const uhd::time_spec_t & now ) {
+int64_t buffer_tracker::get_buffer_level( const time_spec_t & now ) {
 
     // For debugging
     // if(blank_period_start.size() > blank_period_stop.size() && !buffer_mistmatch_printed) {
@@ -68,16 +66,16 @@ int64_t buffer_tracker::get_buffer_level( const uhd::time_spec_t & now ) {
     }
 
     // How much time has been spent in the current blank period
-    uhd::time_spec_t partial_blank_period;
+    time_spec_t partial_blank_period;
     if(blank_period_start.size() > 0 && now > blank_period_start[0]) {
         partial_blank_period = now - blank_period_start[0];
     } else {
         // There are no blank periods waiting
-        partial_blank_period = uhd::time_spec_t(0.0);
+        partial_blank_period = time_spec_t(0.0);
     }
 
 
-    uhd::time_spec_t time_streaming = now - blanked_time - partial_blank_period;
+    time_spec_t time_streaming = now - blanked_time - partial_blank_period;
     uint64_t samples_consumed = (uint64_t)(time_streaming.get_full_secs() * nominal_sample_rate) + (uint64_t)(time_streaming.get_frac_secs() * nominal_sample_rate);
     if(samples_consumed > total_samples_sent) {
         return 0;
@@ -98,5 +96,3 @@ nominal_sample_rate( rate ),
 blanked_time(0.0)
 {
 }
-
-}}

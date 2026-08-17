@@ -32,8 +32,6 @@
 #define CMD_SUCCESS 	'0'
 #define CMD_ERROR	'1'
 
-namespace uhd {
-
 /*!
  * Interface class: for communicating with the server on Per Vices products
  * Provides a set of functions access the state tree
@@ -71,8 +69,8 @@ public:
     void set_int(const std::string pre, int data);
 
     // wrapper for type <time_spec_t> through the ASCII Crimson interface
-    uhd::time_spec_t get_time_spec(std::string req);
-    void set_time_spec(const std::string pre, uhd::time_spec_t data);
+    time_spec_t get_time_spec(std::string req);
+    void set_time_spec(const std::string pre, time_spec_t data);
 
     ~pv_iface();
 
@@ -91,10 +89,10 @@ private:
     std::string peek_str( float timeout_s );
 
     // UDP socket pointed at the SDR
-    uhd::transport::udp_simple::sptr udp_transport;
+    udp_simple::sptr udp_transport;
 
     // TCP connection to the server
-    uhd::transport::tcp_simple* tcp_connection = nullptr;
+    tcp_simple* tcp_connection = nullptr;
 
     // internal function for tokenizing the inputs
     void parse(std::vector<std::string> &tokens, char* data, size_t const data_len, const char delim);
@@ -106,7 +104,5 @@ private:
     // buffer for in and out
     char _buff[ MAX_MTU_SIZE ];
 };
-
-}
 
 #endif /* INCLUDED_PV_IFACE_HPP */

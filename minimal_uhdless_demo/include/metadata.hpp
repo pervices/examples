@@ -11,8 +11,6 @@
 #include <stdint.h>
 #include <string>
 
-namespace uhd {
-
 /*!
  * RX metadata structure for describing sent IF data.
  * Includes time specification, fragmentation flags, burst flags, and error codes.
@@ -252,5 +250,3 @@ struct async_metadata_t
      */
     std::string strevent(void) const;
 };
-
-} // namespace uhd

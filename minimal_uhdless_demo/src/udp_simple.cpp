@@ -14,7 +14,6 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/udp.hpp>
 
-using namespace uhd::transport;
 namespace asio = boost::asio;
 
 /*!

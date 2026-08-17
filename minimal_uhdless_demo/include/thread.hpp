@@ -7,8 +7,6 @@
 
 #pragma once
 
-namespace uhd {
-
 constexpr float DEFAULT_THREAD_PRIORITY = float(0.5);
 
 /*!
@@ -34,5 +32,3 @@ void set_thread_priority_non_realtime(float priority);
  */
 bool set_thread_priority_safe(
     float priority = DEFAULT_THREAD_PRIORITY, bool realtime = true);
-
-} // namespace uhd

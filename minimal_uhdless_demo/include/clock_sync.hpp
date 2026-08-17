@@ -25,8 +25,6 @@
 // Class for managing single writer multiple readers
 #include "swmr.hpp"
 
-namespace uhd { namespace usrp {
-
 static constexpr size_t CACHE_LINE_SIZE = 64;
 
 #pragma pack(push,1)
@@ -95,10 +93,10 @@ private:
      *     such that the error is forced to zero.
      *     => Crimson Time Now := Host Time Now + CV
      */
-    alignas(CACHE_LINE_SIZE) uhd::pidc time_diff_pidc;
+    alignas(CACHE_LINE_SIZE) pidc time_diff_pidc;
 
     // The socket used to send and receive time diffs
-    transport::udp_simple::sptr sync_socket;
+    udp_simple::sptr sync_socket;
 
     std::thread sync_thread;
 
@@ -144,7 +142,7 @@ private:
      * Send is inline but not recv because send may be sent from a critical thread, recv is not time sensitive
      * @param prediction The predicted time on the device
      */
-    inline void time_diff_send( uhd::time_spec_t prediction ) {
+    inline void time_diff_send( time_spec_t prediction ) {
         time_diff_req request;
 
         // Create request
@@ -179,7 +177,7 @@ private:
      * @param tdr The reply containing the difference between the predicted and actual time
      * @param now The time on the host when the request was send
      */
-    void time_diff_process( const time_diff_resp & tdr, const uhd::time_spec_t & request_time );
+    void time_diff_process( const time_diff_resp & tdr, const time_spec_t & request_time );
 
     /**
      * Updates time diff. Only call this if the clocks are converged
@@ -292,7 +290,7 @@ public:
             !is_synced()
         );
 
-        return uhd::get_system_time() + difference;
+        return get_system_time() + difference;
     }
 
     /**
@@ -311,6 +309,3 @@ public:
     static void loop_thread_fn(clock_sync *self);
 
 };
-
-
-}} // namespace uhd::usrp

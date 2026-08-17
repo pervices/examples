@@ -33,10 +33,6 @@ static inline uint32_t be_macro(uint32_t x)
 }
 #define BE_MACRO(x) be_macro(x)
 
-using namespace uhd;
-using namespace uhd::transport;
-using namespace uhd::transport::vrt;
-
 typedef size_t pred_type;
 typedef std::vector<pred_type> pred_table_type;
 #define pred_table_index(hdr) ((hdr >> 20) & 0x1ff)
@@ -4570,7 +4566,7 @@ inline void __if_hdr_unpack_be(
 /***********************************************************************
  * link layer + VRT IF packing
  **********************************************************************/
-void vrt::if_hdr_pack_be(
+void if_hdr_pack_be(
     uint32_t *packet_buff,
     if_packet_info_t &if_packet_info
 ){
@@ -4608,7 +4604,7 @@ void vrt::if_hdr_pack_be(
 /***********************************************************************
  * link layer + VRT IF unpacking
  **********************************************************************/
-void vrt::if_hdr_unpack_be(
+void if_hdr_unpack_be(
     const uint32_t *packet_buff,
     if_packet_info_t &if_packet_info
 ){

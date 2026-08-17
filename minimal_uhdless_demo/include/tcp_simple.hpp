@@ -19,8 +19,6 @@
 #include <string>
 #include <stdint.h>
 
-namespace uhd { namespace transport {
-
 /**
  * A simple manager for using a tcp socket
  */
@@ -73,6 +71,3 @@ public:
      */
     size_t recv(void* buff, size_t size, double timeout = 0.1);
 };
-
-
-}} // namespace uhd::transport

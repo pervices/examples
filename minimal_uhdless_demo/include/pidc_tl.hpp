@@ -3,8 +3,6 @@
 
 #include "pidc.hpp"
 
-namespace uhd {
-
 	// TODO: convert this to a header file for pidc.hpp, convert pidc.hpp to cpp and
 
 #define TL_TI( Ku, Pu ) ( 2.2 * Pu )
@@ -19,7 +17,7 @@ namespace uhd {
 	 *
 	 * An alternative, more stable tuning than Ziegler-Nichols.
 	 */
-	class pidc_tl : public uhd::pidc {
+	class pidc_tl : public pidc {
 
 	public:
 
@@ -31,7 +29,7 @@ namespace uhd {
 
 		pidc_tl( double sp, double Kp, double Ki, double Kd, double derivative_filter_frequency )
 		:
-			uhd::pidc( sp, Kp, Ki, Kd, derivative_filter_frequency )
+			pidc( sp, Kp, Ki, Kd, derivative_filter_frequency )
 		{
 		}
 
@@ -43,7 +41,5 @@ namespace uhd {
 
 		virtual ~pidc_tl() {}
 	};
-
-} // namespace uhd
 
 #endif /* PIDC_TL_HPP_ */

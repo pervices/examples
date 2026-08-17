@@ -15,9 +15,6 @@
 // For reducing the priority of the sync thread
 #include "../include/thread.hpp"
 
-using namespace uhd;
-using namespace uhd::usrp;
-
 static constexpr size_t padded_clock_sync_size = (size_t) ceil(sizeof(clock_sync) / (double)CACHE_LINE_SIZE) * CACHE_LINE_SIZE;
 
 //#define MEASURE_ACCURACY
@@ -29,7 +26,7 @@ clock_sync::clock_sync(std::string ip, uint16_t port, double tick_rate)
 
     // Configure PID
 
-    time_diff_pidc = uhd::pidc_tl(
+    time_diff_pidc = pidc_tl(
         0.0, // desired set point is 0.0s error
         1.0, // measured K-ultimate occurs with Kp = 1.0, Ki = 0.0, Kd = 0.0
         // measured P-ultimate is inverse of 1/2 the flow-control sample rate
@@ -40,7 +37,7 @@ clock_sync::clock_sync(std::string ip, uint16_t port, double tick_rate)
     time_diff_pidc.set_max_error_for_convergence( 10e-6 );
 
     // Create port used to send/receive time diffs
-    sync_socket = transport::udp_simple::make_connected(ip, std::to_string(port));
+    sync_socket = udp_simple::make_connected(ip, std::to_string(port));
 
     sync_thread = std::thread(loop_thread_fn, this);
 }
@@ -53,12 +50,12 @@ clock_sync::~clock_sync() {
 // Wait for convergence
 void clock_sync::wait_for_sync() {
     for(
-        time_spec_t time_then = uhd::get_system_time(),
+        time_spec_t time_then = get_system_time(),
             time_now = time_then
             ;
         (!is_synced())
             ;
-        time_now = uhd::get_system_time()
+        time_now = get_system_time()
     ) {
         if ( (time_now - time_then).get_full_secs() > 20 ) {
             std::cout << "[CLOCK_SYNC] ERROR: Clock domain synchronization taking unusually long. Are there more than 1 applications controlling the device?" << std::endl;
@@ -91,7 +88,7 @@ void clock_sync::reset_time_diff_pid() {
     // Fence to ensure nothing before getting the time and after sending the packet gets reordered that may impact timing
     std::atomic_thread_fence(std::memory_order_seq_cst);
 
-    uhd::time_spec_t reset_now = uhd::get_system_time();
+    time_spec_t reset_now = get_system_time();
 
     struct time_diff_resp reset_tdr;
 
@@ -107,7 +104,7 @@ void clock_sync::reset_time_diff_pid() {
 }
 
 /// SoB Time Diff: feed the time diff error back into out control system
-void clock_sync::time_diff_process( const time_diff_resp & tdr, const uhd::time_spec_t & now ) {
+void clock_sync::time_diff_process( const time_diff_resp & tdr, const time_spec_t & now ) {
 
     static const double sp = 0.0;
 
@@ -170,13 +167,13 @@ void clock_sync::loop_thread_fn( clock_sync *self ) {
 #endif
 
     // Set thread priority to default since this isn't high priority
-    uhd::set_thread_priority_safe(0, false);
+    set_thread_priority_safe(0, false);
 
     // Flag so that we only print the error message for failed recv once
     bool dropped_recv_message_printed = false;
     bool reply_failed = false;
 
-    uhd::time_spec_t host_control_time, then, dt;
+    time_spec_t host_control_time, then, dt;
     struct timespec req, rem;
 
     struct time_diff_resp tdr;
@@ -185,7 +182,7 @@ void clock_sync::loop_thread_fn( clock_sync *self ) {
     self->reset_time_diff_pid();
 
     for(
-        host_control_time = uhd::get_system_time(),
+        host_control_time = get_system_time(),
         then = host_control_time + UPDATE_PERIOD
         ;
 
@@ -193,7 +190,7 @@ void clock_sync::loop_thread_fn( clock_sync *self ) {
         ;
 
         then += UPDATE_PERIOD,
-        host_control_time = uhd::get_system_time()
+        host_control_time = get_system_time()
     ) {
         dt = then - host_control_time;
         if ( dt > 0.0 ) {
@@ -217,7 +214,7 @@ void clock_sync::loop_thread_fn( clock_sync *self ) {
         }
 
         if(self->is_resync_requested()) {
-            uhd::time_spec_t zero_time(0.0);
+            time_spec_t zero_time(0.0);
 
             self->time_diff_send( zero_time );
 
@@ -245,10 +242,10 @@ void clock_sync::loop_thread_fn( clock_sync *self ) {
         std::atomic_thread_fence(std::memory_order_seq_cst);
 
         // The time of the host when the time on device was predicted
-        uhd::time_spec_t host_prediction_time = uhd::get_system_time();
+        time_spec_t host_prediction_time = get_system_time();
 
         // The time we predict the device to have
-        uhd::time_spec_t device_predicted_time = host_prediction_time + time_diff;
+        time_spec_t device_predicted_time = host_prediction_time + time_diff;
 
         // Send the predicted time
         self->time_diff_send( device_predicted_time );

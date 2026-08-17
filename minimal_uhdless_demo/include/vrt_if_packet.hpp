@@ -10,8 +10,6 @@
 #include <stdint.h>
 #include <cstddef> //size_t
 
-namespace uhd { namespace transport { namespace vrt {
-
 /*!
  * Definition for fields that can be packed into a vrt if header.
  * The size fields are used for input and output depending upon
@@ -169,5 +167,3 @@ inline if_packet_info_t::if_packet_info_t(void)
     , tlr(0)
 {
 }
-
-}}} // namespace uhd::transport::vrt
