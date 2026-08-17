@@ -167,7 +167,7 @@ void send_packet_handler_mmsg::send_eob_packet(const tx_metadata_t &metadata, do
 
     // Create vector of dummy samples, since the FPGA cannot handle 0 sample packets
     std::vector<std::vector<int8_t>> dummy_buffs(_NUM_CHANNELS, std::vector<int8_t>(_BYTES_PER_SAMPLE * dummy_samples_in_eob, 0));
-    buffs_type dummy_buff_ptrs;
+    std::vector<const void*> dummy_buff_ptrs(_NUM_CHANNELS);
     for(size_t n = 0; n < _NUM_CHANNELS; n++) {
         dummy_buff_ptrs[n] = dummy_buffs[n].data();
     }

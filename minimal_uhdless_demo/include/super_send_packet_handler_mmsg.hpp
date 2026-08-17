@@ -7,7 +7,6 @@
 #pragma once
 
 // UHD Includes
-#include <array>
 #include <cstring>
 #include "metadata.hpp"
 #include "vrt_if_packet.hpp"
@@ -24,28 +23,9 @@
 
 #define MIN_MTU 9000
 
-// Only the pointer type is needed here (post_output_action never touches the
-// pointee); the full definition lived in uhd/rfnoc/actions.hpp, which isn't
-// otherwise used by this demo.
-struct action_info;
-
-    // Socket priority for tx sockets
-    // Highest possible thread priority without CAP_NET_ADMIN
-    const int TX_SO_PRIORITY = 6;
-
-    // Cache line size on AMD64 CPUs
-    // (CACHE_LINE_SIZE itself now comes from clock_sync.hpp, included above -
-    // it used to be a separate constant in the now-removed uhd::transport::sph
-    // namespace, distinct from uhd::usrp's; now that namespaces are gone, reuse it)
-
-    // Highest number of tx channels a streamer can support
-    // (duplicated as a private constant in send_packet_handler_mmsg below;
-    // needs to be visible here for buffs_type)
-    static constexpr uint_fast8_t MAX_CHANNELS = 16;
-
-    // Typedef for a pointer to a single, or a collection of send buffers
-    // (formerly ref_vector<const void*>, from uhd/stream.hpp / ref_vector.hpp)
-    typedef std::array<const void*, MAX_CHANNELS> buffs_type;
+// Socket priority for tx sockets
+// Highest possible thread priority without CAP_NET_ADMIN
+const int TX_SO_PRIORITY = 6;
 
 /***********************************************************************
  * Super send packet handler
@@ -262,7 +242,7 @@ private:
 public:
 
     inline size_t send(
-        const buffs_type &sample_buffs,
+        const std::vector<const void*> &sample_buffs,
         const size_t nsamps_to_send,
         const tx_metadata_t &metadata,
         const double timeout
@@ -377,7 +357,7 @@ public:
 private:
 
     inline size_t send_multiple_packets(
-        const buffs_type &sample_buffs,
+        const std::vector<const void*> &sample_buffs,
         const size_t nsamps_to_send,
         const tx_metadata_t &metadata_,
         const double timeout,
