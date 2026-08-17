@@ -97,9 +97,6 @@ private:
     // Tick rate of the device. It is used for timestamps
     const double _TICK_RATE;
 
-    // Setpoint to use in blocking buffer management mode
-    int64_t blocking_setpoint = 0;
-
     // Device buffer size
     const int64_t _DEVICE_BUFFER_SIZE;
 
@@ -126,8 +123,6 @@ protected:
      * channel index refers the the index in the list provided
      */
     size_t _channels[MAX_CHANNELS] = {};
-
-    bool use_blocking_fc = false;
 
     /**
      * Start of pointers that are constant but point to non const data.
@@ -223,11 +218,6 @@ private:
     // A smart pointer can have inconsistent access times but we need it to maintain ownership of the info to ensure it is not destructed
     // To solve this problem, we will put the smart pointer on it's own cache line (shown here as a pointer to a smart pointer) for ownership while using a raw pointer for actual operations
 
-protected:
-    // TODO: add comments clarifying how the vector is used. I am delaying adding anti false sharing changes to it because it is unclear how it is used
-    // Lockfiles to indicate the channel is currently actively streaming to prevent issues like changing the rate in the middle of a stream
-    std::vector<int> _streaming_locks;
-
     /**
      * End of variables.
      */
@@ -237,7 +227,7 @@ public:
      * Make a new packet handler for send
      * \param buffer_size size of the buffer on the unit
      */
-    send_packet_handler_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, const std::string& cpu_format, const std::string& wire_format, bool wire_little_endian, std::shared_ptr<clock_sync> clock_sync_info_owner, std::vector<int> streaming_locks);
+    send_packet_handler_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, bool wire_little_endian, std::shared_ptr<clock_sync> clock_sync_info_owner);
 
     ~send_packet_handler_mmsg(void);
 
@@ -255,20 +245,6 @@ private:
 public:
 
     void set_samp_rate(const double rate);
-    void enable_blocking_fc(int64_t blocking_setpoint);
-    void disable_blocking_fc();
-    void lock_channel_streaming(size_t channel_num);
-
-protected:
-    /*******************************************************************
-     * converts vrt packet info into header
-     * packet_buff: buffer to write vrt data to
-     * if_packet_info: packet info to be used to calculate the header
-     ******************************************************************/
-    virtual void if_hdr_pack(uint32_t* packet_buff, if_packet_info_t& if_packet_info) = 0;
-
-    // Sends a request for the buffer level from the device, returns the result of that request
-    virtual int64_t get_buffer_level_from_device(const size_t ch_i) = 0;
 
 private:
     // Expands the buffers used in the send command, does nothing if already large enough
@@ -455,7 +431,7 @@ private:
 
         for(size_t ch_i = 0; ch_i < _NUM_CHANNELS; ch_i++) {
             for(int n = 0; n < num_packets; n++) {
-                if_hdr_pack(ch_send_buffer_info_group[ch_i].vrt_headers[n].data(), packet_header_infos[n]);
+                if_hdr_pack_be(ch_send_buffer_info_group[ch_i].vrt_headers[n].data(), packet_header_infos[n]);
             }
         }
 
@@ -593,13 +569,11 @@ private:
             // Packets are in the future (drop normal packets that would arrive to late)
             // Always send start of burst or end of packets because they are needed for control
             // Send packets without tsf since they don't have a set time
-            // Also ignore send time in blocking fc mode since it doesn't apply
             if(
                 /* Packet is in the future*/ (int64_t)packet_header_infos[packets_sent].tsf >= ( _clock_sync->get_device_time().to_ticks(_TICK_RATE) + (int64_t)(drop_lead * _TICK_RATE) ) ||
                 /* Packet is start of burst */ packet_header_infos[packets_sent].sob ||
                 /* Packet is end of burst*/ packet_header_infos[packets_sent].eob ||
-                /* Packet does not have a timestamp*/ !packet_header_infos[packets_sent].has_tsf ||
-                /* Blocking flow control is in use */ use_blocking_fc
+                /* Packet does not have a timestamp*/ !packet_header_infos[packets_sent].has_tsf
             ) {
                 packets_sent_now = 0;
 
@@ -697,36 +671,4 @@ private:
             return 0;
         }
     }
-
-    /*!
-     * Validates that cpu_format/wire_format/wire_little_endian require no conversion.
-     * Called as part of the constructor, only in its own function to improve readability
-     * \param cpu_format datatype of samples on the host system (only sc16 and fc32)
-     * \param wire_format datatype of samples in the packets (only sc16)
-     * \param wire_little_endian data format in packets is little endian
-     * \throws std::invalid_argument if cpu_format != wire_format or wire_little_endian is false
-     */
-    void setup_converter(const std::string& cpu_format, const std::string& wire_format, bool wire_little_endian);
-
-};
-
-class send_packet_streamer_mmsg : public send_packet_handler_mmsg {
-public:
-    send_packet_streamer_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, const std::string& cpu_format, const std::string& wire_format, bool wire_little_endian, std::shared_ptr<clock_sync> clock_sync_info, std::vector<int> streaming_locks);
-
-    size_t get_num_channels(void) const {
-        return _NUM_CHANNELS;
-    }
-
-    size_t get_max_num_samps(void) const {
-        return _max_samples_per_packet;
-    }
-
-    // Makes sure the correct enable_blocking_fc is used instead of the one from send_packet_handler_mmsg
-    void enable_blocking_fc(uint64_t blocking_setpoint);
-
-    // Makes sure the correct disable_blocking_fc is used instead of the one from send_packet_handler_mmsg
-    void disable_blocking_fc();
-
-    void post_output_action(const std::shared_ptr<action_info>&, const size_t);
 };

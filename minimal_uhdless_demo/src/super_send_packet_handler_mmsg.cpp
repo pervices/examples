@@ -21,9 +21,8 @@
 #include <ifaddrs.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
-#include <sys/file.h>
 
-send_packet_handler_mmsg::send_packet_handler_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, const std::string& cpu_format, const std::string& wire_format, bool wire_little_endian, std::shared_ptr<clock_sync> clock_sync_info_owner, std::vector<int> streaming_locks)
+send_packet_handler_mmsg::send_packet_handler_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, bool wire_little_endian, std::shared_ptr<clock_sync> clock_sync_info_owner)
     // Ensure max_samples_per_packet is a multiple of the number of samples allowed per packet
     :
     _DEVICE_TARGET_NSAMPS(device_target_nsamps),
@@ -34,8 +33,7 @@ send_packet_handler_mmsg::send_packet_handler_mmsg(const std::vector<size_t>& ch
     _DEVICE_BUFFER_SIZE(device_buffer_size),
     _NUM_CHANNELS(channels.size()),
     _clock_sync(clock_sync_info_owner.get()),
-    _clock_sync_owner(clock_sync_info_owner),
-    _streaming_locks(streaming_locks)
+    _clock_sync_owner(clock_sync_info_owner)
 {
     // Copy provided channel list vector to internal channel list
     std::copy(channels.begin(), channels.end(), _channels);
@@ -93,8 +91,6 @@ send_packet_handler_mmsg::send_packet_handler_mmsg(const std::vector<size_t>& ch
 
         send_sockets[n] = send_socket_fd;
     }
-
-    setup_converter(cpu_format, wire_format, wire_little_endian);
 }
 
 send_packet_handler_mmsg::~send_packet_handler_mmsg(void){
@@ -122,33 +118,6 @@ void send_packet_handler_mmsg::set_samp_rate(const double rate) {
     // Drop packets if they are within the lower of 20% of a buffer of being late and 40us
     // 40e-6 was chosen since it is extremely rare for packets to be over 35e-6 seconds late based on clock sync predictions
     drop_lead = std::min(0.2 * _DEVICE_BUFFER_SIZE / _sample_rate, 40e-6);
-}
-
-void send_packet_handler_mmsg::enable_blocking_fc(int64_t blocking_setpoint) {
-    use_blocking_fc = true;
-    if(blocking_setpoint > 0.9 * _DEVICE_BUFFER_SIZE) {
-        blocking_setpoint = (uint64_t) (0.9*_DEVICE_BUFFER_SIZE);
-    };
-    this->blocking_setpoint = blocking_setpoint;
-}
-
-void send_packet_handler_mmsg::disable_blocking_fc() {
-    use_blocking_fc = false;
-}
-
-// Attempt to get the streaming lock for a channel.
-void send_packet_handler_mmsg::lock_channel_streaming(size_t channel_num) {
-    // Set an exclusive lock on the channel lockfile. Nonblocking so it fails if already locked instead of waiting for it to be unlocked.
-    int r = flock(_streaming_locks[channel_num], LOCK_EX | LOCK_NB);
-    if (r == -1) {
-        int err = errno;
-        // EWOULDBLOCK is expected if there is already a lock since we ran with the LOCK_NB flag.
-        if (err == EWOULDBLOCK) {
-            throw std::runtime_error("Another instance of UHD is currently using channel " + std::to_string(channel_num) + ".");
-        } else {
-            throw std::runtime_error("flock failed to lock streaming for channel " + std::to_string(channel_num) + " with error: " + std::string(strerror(err)));
-        }
-    }
 }
 
 send_packet_handler_mmsg::ch_send_buffer_info::ch_send_buffer_info(const size_t size, const size_t vrt_header_size, const size_t cache_size, const int64_t device_target_nsamps, const double rate)
@@ -182,20 +151,13 @@ void send_packet_handler_mmsg::expand_send_buffer_info(size_t new_size) {
 }
 
 int send_packet_handler_mmsg::check_fc_npackets(const size_t ch_i) {
-    if(!use_blocking_fc) [[likely]] {
+    // Get the buffer level on the unit
+    time_spec_t device_time = _clock_sync->get_device_time();
+    int64_t buffer_level = ch_send_buffer_info_group[ch_i].buffer_level_manager.get_buffer_level(device_time);
 
-        // Get the buffer level on the unit
-        time_spec_t device_time = _clock_sync->get_device_time();
-        int64_t buffer_level = ch_send_buffer_info_group[ch_i].buffer_level_manager.get_buffer_level(device_time);
+    int num_packets_to_send = (int) std::ceil((_DEVICE_TARGET_NSAMPS - buffer_level) / ((double)_max_samples_per_packet));
 
-        int num_packets_to_send = (int) std::ceil((_DEVICE_TARGET_NSAMPS - buffer_level) / ((double)_max_samples_per_packet));
-
-        return num_packets_to_send;
-
-    } else {
-        int64_t buffer_level = get_buffer_level_from_device(ch_i);
-        return (int) std::ceil((blocking_setpoint - buffer_level) / ((double)_max_samples_per_packet));
-    }
+    return num_packets_to_send;
 }
 
 void send_packet_handler_mmsg::send_eob_packet(const tx_metadata_t &metadata, double timeout) {
@@ -230,11 +192,6 @@ void send_packet_handler_mmsg::send_eob_packet(const tx_metadata_t &metadata, do
 
     // Sends the eob packet
     send_multiple_packets(dummy_buff_ptrs, dummy_samples_in_eob, eob_md, timeout, true);
-
-    // Unlock the streaming lockfiles for each channel
-    for (size_t n = 0; n < _NUM_CHANNELS; n++) {
-        flock(_streaming_locks[n], LOCK_UN);
-    }
 }
 
 int send_packet_handler_mmsg::get_mtu(int socket_fd, std::string ip) {
@@ -289,31 +246,4 @@ int send_packet_handler_mmsg::get_mtu(int socket_fd, std::string ip) {
     }
     freeifaddrs(ifaces);
     throw std::runtime_error("No interface with subnet matching ip found");
-}
-
-void send_packet_handler_mmsg::setup_converter(const std::string& cpu_format, const std::string& wire_format, bool wire_little_endian) {
-    // No conversion support: samples are always sent as-is via scatter/gather
-    if(!(cpu_format == wire_format && wire_little_endian)) {
-        throw std::invalid_argument("cpu_format must equal wire_format and wire_little_endian must be true; sample format conversion is not supported");
-    }
-}
-
-
-send_packet_streamer_mmsg::send_packet_streamer_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, const std::string& cpu_format, const std::string& wire_format, bool wire_little_endian, std::shared_ptr<clock_sync> clock_sync_info, std::vector<int> streaming_locks):
-send_packet_handler_mmsg(channels, max_samples_per_packet, device_buffer_size, dst_ips, dst_ports, device_target_nsamps, device_packet_nsamp_multiple, tick_rate, cpu_format, wire_format, wire_little_endian, clock_sync_info, streaming_locks)
-{
-}
-
-void send_packet_streamer_mmsg::enable_blocking_fc(uint64_t blocking_setpoint) {
-    // TODO: change tx_streamer to use int64_t instead of uint64_t
-    send_packet_handler_mmsg::enable_blocking_fc((int64_t)blocking_setpoint);
-}
-
-void send_packet_streamer_mmsg::disable_blocking_fc() {
-    send_packet_handler_mmsg::disable_blocking_fc();
-}
-
-void send_packet_streamer_mmsg::post_output_action(const std::shared_ptr<action_info>&, const size_t)
-{
-    throw std::logic_error("post_output_action is not implemented for this device");
 }
