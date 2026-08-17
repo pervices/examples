@@ -9,12 +9,16 @@
 #include <iostream>
 #include <stdexcept>
 #include <poll.h>
-// asio::io_context and asio::ip::udp (formerly pulled in transitively via
-// uhdlib/transport/udp_common.hpp -> uhdlib/asio.hpp -> <boost/asio.hpp>)
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/ip/udp.hpp>
 
-namespace asio = boost::asio;
+// Standard library / libc networking (formerly boost::asio; see git history
+// for the boost::asio-based implementation)
+#include <cstring>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <cerrno>
 
 /*!
  * Wait for the socket to become ready for a receive operation.
@@ -49,14 +53,13 @@ public:
     {
         std::cout << "[UDP] TRACE: Creating udp transport for " << addr << " " << port << std::endl;
 
-        // resolve the address
-        asio::ip::udp::resolver resolver(_io_context);
-        _send_endpoint = *resolver
-                              .resolve(asio::ip::udp::v4(),
-                                  addr,
-                                  port,
-                                  asio::ip::resolver_query_base::all_matching)
-                              .begin();
+        // addr is always a numeric ipv4 address (no hostname resolution needed)
+        memset(&_send_address, 0, sizeof(_send_address));
+        _send_address.sin_family = AF_INET;
+        _send_address.sin_port = htons((uint16_t) std::stoi(port));
+        if (inet_pton(AF_INET, addr.c_str(), &_send_address.sin_addr) != 1) {
+            throw std::runtime_error("Invalid IPv4 address: " + addr);
+        }
 
         // create and open the socket
         socket_fd = ::socket(AF_INET, SOCK_DGRAM, 0);
@@ -67,13 +70,7 @@ public:
 
         // connect the socket
         if (connect) {
-            struct sockaddr_in dst_address;
-            dst_address.sin_family = AF_INET;
-            std::string ipv4_addr = _send_endpoint.address().to_string();
-            dst_address.sin_addr.s_addr = inet_addr(ipv4_addr.c_str());
-            dst_address.sin_port = htons(_send_endpoint.port());
-
-            int r = ::connect(socket_fd, (struct sockaddr*)&dst_address, sizeof(dst_address));
+            int r = ::connect(socket_fd, (struct sockaddr*)&_send_address, sizeof(_send_address));
 
             if(r) {
                 throw std::runtime_error("Failed to connect send socket for control packets. Error code:" + std::string(strerror(errno)));
@@ -102,14 +99,7 @@ public:
             }
         }
 
-        struct sockaddr_in dst_address;
-        memset(&dst_address, 0, sizeof(dst_address));
-        dst_address.sin_family = AF_INET;
-        std::string ipv4_addr = _send_endpoint.address().to_string();
-        dst_address.sin_addr.s_addr = inet_addr(ipv4_addr.c_str());
-        dst_address.sin_port = htons(_send_endpoint.port());
-
-        ssize_t ret = sendto(socket_fd, buff, count, MSG_CONFIRM & route_good, (struct sockaddr*)&dst_address, sizeof(dst_address));
+        ssize_t ret = sendto(socket_fd, buff, count, MSG_CONFIRM & route_good, (struct sockaddr*)&_send_address, sizeof(_send_address));
 
         if(ret > 0) {
             return ret;
@@ -138,7 +128,7 @@ public:
         } else {
             struct sockaddr_in src_address;
             memset(&src_address, 0, sizeof(src_address));
-            uint32_t addr_len = sizeof(src_address);
+            socklen_t addr_len = sizeof(src_address);
 
             data_received = ::recvfrom(socket_fd, buff, size, MSG_DONTWAIT, (struct sockaddr*)&src_address, &addr_len);
             if(data_received == -1) {
@@ -166,13 +156,14 @@ public:
 
     std::string get_send_addr(void) override
     {
-        return _send_endpoint.address().to_string();
+        char buf[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &_send_address.sin_addr, buf, sizeof(buf));
+        return std::string(buf);
     }
 
 private:
     bool _connected;
-    asio::io_context _io_context;
-    asio::ip::udp::endpoint _send_endpoint;
+    struct sockaddr_in _send_address;
     // IP address received packets originated from
     std::string recv_ip = "0.0.0.0";
     // Set to 0 until a packet has been received, ~0 once a packet has been received

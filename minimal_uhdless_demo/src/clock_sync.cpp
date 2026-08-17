@@ -15,6 +15,9 @@
 // For reducing the priority of the sync thread
 #include "../include/thread.hpp"
 
+// For usleep
+#include <unistd.h>
+
 static constexpr size_t padded_clock_sync_size = (size_t) ceil(sizeof(clock_sync) / (double)CACHE_LINE_SIZE) * CACHE_LINE_SIZE;
 
 //#define MEASURE_ACCURACY

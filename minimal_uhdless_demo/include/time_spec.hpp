@@ -8,7 +8,6 @@
 #pragma once
 
 #include <stdint.h>
-#include <boost/operators.hpp>
 
 /*!
  * A time_spec_t holds a seconds and a fractional seconds time value.
@@ -22,9 +21,7 @@
  * This gives the fractional seconds enough precision to unambiguously
  * specify a clock-tick/sample-count up to rates of several petahertz.
  */
-class time_spec_t : boost::additive<time_spec_t>,
-                            boost::additive<time_spec_t, double>,
-                            boost::totally_ordered<time_spec_t>
+class time_spec_t
 {
 public:
     // A special value that signifies immediate execution
@@ -120,6 +117,50 @@ bool operator==(const time_spec_t&, const time_spec_t&);
 
 //! Implement less_than_comparable interface
 bool operator<(const time_spec_t&, const time_spec_t&);
+
+// The rest of the comparison/arithmetic operators below are derived from the
+// two operators above and the four compound-assignment members (formerly
+// synthesized by boost::additive<time_spec_t>, boost::additive<time_spec_t,
+// double>, and boost::totally_ordered<time_spec_t>)
+inline bool operator!=(const time_spec_t& lhs, const time_spec_t& rhs)
+{
+    return !(lhs == rhs);
+}
+
+inline bool operator>(const time_spec_t& lhs, const time_spec_t& rhs)
+{
+    return rhs < lhs;
+}
+
+inline bool operator<=(const time_spec_t& lhs, const time_spec_t& rhs)
+{
+    return !(rhs < lhs);
+}
+
+inline bool operator>=(const time_spec_t& lhs, const time_spec_t& rhs)
+{
+    return !(lhs < rhs);
+}
+
+inline time_spec_t operator+(time_spec_t lhs, const time_spec_t& rhs)
+{
+    return lhs += rhs;
+}
+
+inline time_spec_t operator-(time_spec_t lhs, const time_spec_t& rhs)
+{
+    return lhs -= rhs;
+}
+
+inline time_spec_t operator+(time_spec_t lhs, double rhs)
+{
+    return lhs += rhs;
+}
+
+inline time_spec_t operator-(time_spec_t lhs, double rhs)
+{
+    return lhs -= rhs;
+}
 
 inline int64_t time_spec_t::get_full_secs(void) const
 {

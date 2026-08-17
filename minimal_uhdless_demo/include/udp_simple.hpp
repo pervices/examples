@@ -25,11 +25,8 @@ public:
      * The primary usage for this transport will be control transactions.
      * The underlying implementation is simple and portable (not fast).
      *
-     * The address will be resolved, it can be a host name or ipv4.
-     * The port will be resolved, it can be a port type or number.
-     *
-     * \param addr a string representing the destination address
-     * \param port a string representing the destination port
+     * \param addr a numeric ipv4 address (host names are not resolved)
+     * \param port a string representing the destination port number
      */
     static sptr make_connected(const std::string& addr, const std::string& port);
 

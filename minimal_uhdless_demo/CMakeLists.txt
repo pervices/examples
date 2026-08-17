@@ -1,14 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 project(minimal_uhdless_demo CXX)
 
-if(POLICY CMP0167)
-    cmake_policy(SET CMP0167 NEW)
-endif()
-
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Boost REQUIRED)
 find_package(Threads REQUIRED)
 
 add_executable(send_main
@@ -47,6 +42,5 @@ target_compile_options(send_main PRIVATE
 )
 
 target_link_libraries(send_main PRIVATE
-    Boost::boost
     Threads::Threads
 )
