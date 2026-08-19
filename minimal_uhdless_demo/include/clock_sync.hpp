@@ -153,8 +153,8 @@ private:
         // Convert request from native little endian to big endian for the FPGA
         // TODO: detect if we are using big or little endian at compile time
         request.header = __builtin_bswap64(request.header);
-        request.tv_sec = __builtin_bswap64(request.tv_sec);
-        request.tv_tick = __builtin_bswap64(request.tv_tick);
+        request.tv_sec = static_cast<int64_t>(__builtin_bswap64(static_cast<uint64_t>(request.tv_sec)));
+        request.tv_tick = static_cast<int64_t>(__builtin_bswap64(static_cast<uint64_t>(request.tv_tick)));
 
         sync_socket->send(&request, sizeof(request));
     }

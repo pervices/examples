@@ -172,6 +172,6 @@ size_t tcp_simple::recv(void* buff, size_t size, double timeout) {
 
     // recv successful
     } else {
-        return bytes_received;
+        return static_cast<size_t>(bytes_received);
     }
 }

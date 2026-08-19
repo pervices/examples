@@ -23,20 +23,20 @@
 #include <net/if.h>
 #include <unistd.h>
 
-send_packet_handler_mmsg::send_packet_handler_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, std::shared_ptr<clock_sync> clock_sync_info_owner)
+send_packet_handler_mmsg::send_packet_handler_mmsg(const std::vector<size_t>& channels, size_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, size_t device_packet_nsamp_multiple, double tick_rate, std::shared_ptr<clock_sync> clock_sync_info_owner)
     // Ensure max_samples_per_packet is a multiple of the number of samples allowed per packet
     :
     _DEVICE_TARGET_NSAMPS(device_target_nsamps),
     _DEVICE_PACKET_NSAMP_MULTIPLE(device_packet_nsamp_multiple),
     _max_samples_per_packet((max_samples_per_packet / device_packet_nsamp_multiple) * device_packet_nsamp_multiple),
-    _MAX_SAMPLE_BYTES_PER_PACKET(_max_samples_per_packet * _bytes_per_sample),
+    _MAX_SAMPLE_BYTES_PER_PACKET(_max_samples_per_packet * _BYTES_PER_SAMPLE),
     _TICK_RATE(tick_rate),
     _DEVICE_BUFFER_SIZE(device_buffer_size),
     _NUM_CHANNELS(channels.size()),
     _clock_sync(clock_sync_info_owner.get()),
     _clock_sync_owner(clock_sync_info_owner)
 {
-    ch_send_buffer_info_group = std::vector<ch_send_buffer_info>(_NUM_CHANNELS, ch_send_buffer_info(0, HEADER_SIZE, _bytes_per_sample * (_DEVICE_PACKET_NSAMP_MULTIPLE - 1), _DEVICE_TARGET_NSAMPS, _sample_rate));
+    ch_send_buffer_info_group = std::vector<ch_send_buffer_info>(_NUM_CHANNELS, ch_send_buffer_info(0, HEADER_SIZE, _BYTES_PER_SAMPLE * (_DEVICE_PACKET_NSAMP_MULTIPLE - 1), _DEVICE_TARGET_NSAMPS, _sample_rate));
 
     // Creates and binds to sockets
     for(size_t n = 0; n < _NUM_CHANNELS; n++) {

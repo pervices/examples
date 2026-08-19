@@ -95,14 +95,14 @@ public:
                 std::cout << "[UDP] ERROR: Attempt to send UDP control packet failed with: " << strerror(errno) << std::endl;
                 return 0;
             } else {
-                return data_sent;
+                return static_cast<size_t>(data_sent);
             }
         }
 
         ssize_t ret = sendto(socket_fd, buff, count, MSG_CONFIRM & route_good, (struct sockaddr*)&_send_address, sizeof(_send_address));
 
         if(ret > 0) {
-            return ret;
+            return static_cast<size_t>(ret);
         } else {
             std::cout << "[UDP] ERROR: Attempt to sendto UDP control packet failed with: " << strerror(errno) << std::endl;
             // Return 0 to keep behaviour from asio

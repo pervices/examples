@@ -40,7 +40,6 @@ private:
     // Cache line size
     // Assume it is 64, which is the case for virtually all AMD64 systems
     static constexpr uint_fast8_t CACHE_LINE_SIZE = 64;
-    static constexpr uint_fast8_t _bytes_per_sample = 4;
     // Size of the vrt header in bytes
     static constexpr uint_fast8_t HEADER_SIZE = 12;
 
@@ -69,7 +68,7 @@ private:
     const size_t _DEVICE_PACKET_NSAMP_MULTIPLE;
 
 protected:
-    const ssize_t _max_samples_per_packet;
+    const size_t _max_samples_per_packet;
 
 private:
     const size_t _MAX_SAMPLE_BYTES_PER_PACKET;
@@ -199,7 +198,7 @@ public:
      * Make a new packet handler for send
      * \param buffer_size size of the buffer on the unit
      */
-    send_packet_handler_mmsg(const std::vector<size_t>& channels, ssize_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, ssize_t device_packet_nsamp_multiple, double tick_rate, std::shared_ptr<clock_sync> clock_sync_info_owner);
+    send_packet_handler_mmsg(const std::vector<size_t>& channels, size_t max_samples_per_packet, const int64_t device_buffer_size, std::vector<std::string>& dst_ips, std::vector<int>& dst_ports, int64_t device_target_nsamps, size_t device_packet_nsamp_multiple, double tick_rate, std::shared_ptr<clock_sync> clock_sync_info_owner);
 
     ~send_packet_handler_mmsg(void);
 
@@ -311,7 +310,7 @@ public:
 
             // If fewer samples were sent than were in the cache move the remaining samples to front of the cache
             for(size_t ch_i = 0; ch_i < _NUM_CHANNELS; ch_i++) {
-                memmove(ch_send_buffer_info_group[ch_i].sample_cache.data(), ch_send_buffer_info_group[ch_i].sample_cache.data() + actual_samples_sent, cached_samples_to_retain * _bytes_per_sample);
+                memmove(ch_send_buffer_info_group[ch_i].sample_cache.data(), ch_send_buffer_info_group[ch_i].sample_cache.data() + actual_samples_sent, cached_samples_to_retain * _BYTES_PER_SAMPLE);
             }
         } else if(actual_samples_sent < actual_nsamps_to_send) {
             // If not the samples meant to actually be sent were sent, clear the cache and do not cache any samples
@@ -328,7 +327,7 @@ public:
             // Since send was fully successful, copy samples that couldn't be sent this send due to limitations on packet sizing to the cache
             if(desired_nsamps_to_cache > 0) {
                 for(size_t ch_i = 0; ch_i < _NUM_CHANNELS; ch_i++) {
-                    memcpy(ch_send_buffer_info_group[ch_i].sample_cache.data(), (uint8_t*)(sample_buffs[ch_i]) + ((actual_samples_sent - cached_samples_sent) * _bytes_per_sample), actual_nsamples_to_cache * _bytes_per_sample);
+                    memcpy(ch_send_buffer_info_group[ch_i].sample_cache.data(), (uint8_t*)(sample_buffs[ch_i]) + ((actual_samples_sent - cached_samples_sent) * _BYTES_PER_SAMPLE), actual_nsamples_to_cache * _BYTES_PER_SAMPLE);
                 }
             }
         } else {
@@ -359,7 +358,7 @@ private:
     ) {
 
         // Number of packets to send
-        int num_packets = std::ceil(((double)nsamps_to_send)/_max_samples_per_packet);
+        size_t num_packets = static_cast<size_t>(std::ceil(((double)nsamps_to_send)/_max_samples_per_packet));
 
         size_t samples_in_last_packet = nsamps_to_send - (_max_samples_per_packet * (num_packets - 1));
 
@@ -373,7 +372,7 @@ private:
             }
         }
 
-        for(int n = 0; n < num_packets; n++) {
+        for(size_t n = 0; n < num_packets; n++) {
             packet_header_infos[n].packet_type = if_packet_info_t::PACKET_TYPE_DATA;
             packet_header_infos[n].packet_count = (next_sequence_number + n) & 0xf;
             packet_header_infos[n].has_sid = false;
@@ -384,10 +383,10 @@ private:
             packet_header_infos[n].has_tsf = true; // Always include a fractional timestamp (in ticks of _TICK_RATE)
             if(metadata_.has_time_spec) {
                 // Sets the timestamp based on what's specified by the user
-                packet_header_infos[n].tsf = (metadata_.time_spec + time_spec_t::from_ticks(n * _max_samples_per_packet - nsamps_in_cache, _sample_rate)).to_ticks(_TICK_RATE);
+                packet_header_infos[n].tsf = static_cast<uint64_t>((metadata_.time_spec + time_spec_t::from_ticks(static_cast<ssize_t>(n * _max_samples_per_packet) - static_cast<ssize_t>(nsamps_in_cache), _sample_rate)).to_ticks(_TICK_RATE));
             } else {
                 // Sets the timestamp to follow from the previous send
-                packet_header_infos[n].tsf = (next_send_time + time_spec_t::from_ticks(n * _max_samples_per_packet - nsamps_in_cache, _sample_rate)).to_ticks(_TICK_RATE);
+                packet_header_infos[n].tsf = static_cast<uint64_t>((next_send_time + time_spec_t::from_ticks(static_cast<ssize_t>(n * _max_samples_per_packet) - static_cast<ssize_t>(nsamps_in_cache), _sample_rate)).to_ticks(_TICK_RATE));
             }
             packet_header_infos[n].sob = (n == 0) && metadata_.start_of_burst;
             packet_header_infos[n].eob     = metadata_.end_of_burst;
@@ -398,11 +397,11 @@ private:
         }
 
         //Set payload size info for last packet
-        packet_header_infos[num_packets - 1].num_payload_bytes = samples_in_last_packet * _bytes_per_sample;
-        packet_header_infos[num_packets - 1].num_payload_words32 = ((samples_in_last_packet*_bytes_per_sample) + 3/*round up*/)/sizeof(uint32_t);
+        packet_header_infos[num_packets - 1].num_payload_bytes = samples_in_last_packet * _BYTES_PER_SAMPLE;
+        packet_header_infos[num_packets - 1].num_payload_words32 = ((samples_in_last_packet*_BYTES_PER_SAMPLE) + 3/*round up*/)/sizeof(uint32_t);
 
         for(size_t ch_i = 0; ch_i < _NUM_CHANNELS; ch_i++) {
-            for(int n = 0; n < num_packets; n++) {
+            for(size_t n = 0; n < num_packets; n++) {
                 if_hdr_pack_be(ch_send_buffer_info_group[ch_i].vrt_headers[n].data(), packet_header_infos[n]);
             }
         }
@@ -413,8 +412,8 @@ private:
             // Impact of the cached samples is handled later by making adding cache to the iovec before the buffer
             ch_send_buffer_info_group[ch_i].sample_data_start_for_packet[0] = (uint8_t*)(sample_buffs[ch_i]);
             // For every other packet get data from (buffer start) + (packet_number * packet data length), the subtract samples
-            for(int n = 1; n < num_packets; n++) {
-                ch_send_buffer_info_group[ch_i].sample_data_start_for_packet[n] = (uint8_t*)(sample_buffs[ch_i]) + (n * _MAX_SAMPLE_BYTES_PER_PACKET) - (nsamps_in_cache * _bytes_per_sample);
+            for(size_t n = 1; n < num_packets; n++) {
+                ch_send_buffer_info_group[ch_i].sample_data_start_for_packet[n] = (uint8_t*)(sample_buffs[ch_i]) + (n * _MAX_SAMPLE_BYTES_PER_PACKET) - (nsamps_in_cache * _BYTES_PER_SAMPLE);
             }
         }
 
@@ -425,14 +424,14 @@ private:
             ch_send_buffer_info_group[ch_i].iovecs[0].iov_len = HEADER_SIZE;
             // Cached samples
             ch_send_buffer_info_group[ch_i].iovecs[1].iov_base = ch_send_buffer_info_group[ch_i].sample_cache.data();
-            ch_send_buffer_info_group[ch_i].iovecs[1].iov_len = nsamps_in_cache * _bytes_per_sample;
+            ch_send_buffer_info_group[ch_i].iovecs[1].iov_len = nsamps_in_cache * _BYTES_PER_SAMPLE;
             // Samples
             // iovecs.iov_base is const for all practical purposes, const_cast is used to allow it to use data from the buffer which is const
             ch_send_buffer_info_group[ch_i].iovecs[2].iov_base = const_cast<void*>(ch_send_buffer_info_group[ch_i].sample_data_start_for_packet[0]);
             if(num_packets > 1) {
-                ch_send_buffer_info_group[ch_i].iovecs[2].iov_len = _MAX_SAMPLE_BYTES_PER_PACKET - (nsamps_in_cache * _bytes_per_sample);
+                ch_send_buffer_info_group[ch_i].iovecs[2].iov_len = _MAX_SAMPLE_BYTES_PER_PACKET - (nsamps_in_cache * _BYTES_PER_SAMPLE);
             } else {
-                ch_send_buffer_info_group[ch_i].iovecs[2].iov_len = (samples_in_last_packet - nsamps_in_cache) * _bytes_per_sample;
+                ch_send_buffer_info_group[ch_i].iovecs[2].iov_len = (samples_in_last_packet - nsamps_in_cache) * _BYTES_PER_SAMPLE;
             }
 
             ch_send_buffer_info_group[ch_i].msgs[0].msg_hdr.msg_iov = &ch_send_buffer_info_group[ch_i].iovecs[0];
@@ -445,7 +444,7 @@ private:
             ch_send_buffer_info_group[ch_i].msgs[0].msg_hdr.msg_controllen = 0;
 
             // Sets up iovecs and msg for packets 1 to n -1
-            for(int n = 1; n < num_packets - 1; n++) {
+            for(size_t n = 1; n < num_packets - 1; n++) {
                 // VRT Header
                 ch_send_buffer_info_group[ch_i].iovecs[1+(2*n)].iov_base = ch_send_buffer_info_group[ch_i].vrt_headers[n].data();
                 ch_send_buffer_info_group[ch_i].iovecs[1+(2*n)].iov_len = HEADER_SIZE;
@@ -466,12 +465,12 @@ private:
 
             // Sets up iovecs and msgs for last packet
             if(num_packets > 1) {
-                int n_last_packet = num_packets - 1;
+                size_t n_last_packet = num_packets - 1;
                 ch_send_buffer_info_group[ch_i].iovecs[1+(2*n_last_packet)].iov_base = ch_send_buffer_info_group[ch_i].vrt_headers[n_last_packet].data();
                 ch_send_buffer_info_group[ch_i].iovecs[1+(2*n_last_packet)].iov_len = HEADER_SIZE;
 
                 ch_send_buffer_info_group[ch_i].iovecs[1+(2*n_last_packet)+1].iov_base = const_cast<void*>(ch_send_buffer_info_group[ch_i].sample_data_start_for_packet[n_last_packet]);
-                ch_send_buffer_info_group[ch_i].iovecs[1+(2*n_last_packet)+1].iov_len = samples_in_last_packet * _bytes_per_sample;
+                ch_send_buffer_info_group[ch_i].iovecs[1+(2*n_last_packet)+1].iov_len = samples_in_last_packet * _BYTES_PER_SAMPLE;
 
                 ch_send_buffer_info_group[ch_i].msgs[n_last_packet].msg_hdr.msg_iov = &ch_send_buffer_info_group[ch_i].iovecs[1+(2*n_last_packet)];
                 ch_send_buffer_info_group[ch_i].msgs[n_last_packet].msg_hdr.msg_iovlen = 2;
@@ -505,12 +504,12 @@ private:
         struct timespec current_time;
 
         // Packets and samples sent for this call of this function
-        ssize_t packets_sent = 0;
+        size_t packets_sent = 0;
         ssize_t samples_sent = 0;
 
         do {
             // The number of packets to send in the next sendmmsg commmand on all channels
-            int packets_to_send_now = num_packets - packets_sent;
+            int packets_to_send_now = static_cast<int>(num_packets - packets_sent);
 
             for(size_t ch_i = 0; ch_i < _NUM_CHANNELS; ch_i++) {
                 int packet_to_send_ch_i = check_fc_npackets(ch_i);
@@ -542,7 +541,7 @@ private:
             // Always send start of burst or end of packets because they are needed for control
             // Send packets without tsf since they don't have a set time
             if(
-                /* Packet is in the future*/ (int64_t)packet_header_infos[packets_sent].tsf >= ( _clock_sync->get_device_time().to_ticks(_TICK_RATE) + (int64_t)(drop_lead * _TICK_RATE) ) ||
+                /* Packet is in the future*/ packet_header_infos[packets_sent].tsf >= static_cast<size_t>( _clock_sync->get_device_time().to_ticks(_TICK_RATE) ) + (drop_lead * _TICK_RATE) ||
                 /* Packet is start of burst */ packet_header_infos[packets_sent].sob ||
                 /* Packet is end of burst*/ packet_header_infos[packets_sent].eob ||
                 /* Packet does not have a timestamp*/ !packet_header_infos[packets_sent].has_tsf
@@ -551,7 +550,7 @@ private:
 
                 for(size_t ch_i = 0; ch_i < _NUM_CHANNELS; ch_i++) {
                     // Send packets
-                    packets_sent_now = sendmmsg(send_sockets[ch_i], &ch_send_buffer_info_group[ch_i].msgs[packets_sent], packets_to_send_now, MSG_CONFIRM);
+                    packets_sent_now = sendmmsg(send_sockets[ch_i], &ch_send_buffer_info_group[ch_i].msgs[packets_sent], static_cast<unsigned int>(packets_to_send_now), MSG_CONFIRM);
 
                     // Record if an error occured
                     // The performance impact of proper error handling is to large
@@ -577,22 +576,22 @@ private:
             // Add the amount of packets sent for this set of sendmmsg to the count
             // This adds the last channel's count and assumes all channels sent correctly
             // Assuming success is not ideal, but proper error handling will have too much of a performance impact
-            packets_sent += packets_sent_now;
+            packets_sent += static_cast<size_t>(packets_sent_now);
 
             // Calculate the number of samples sent in this send
             // Every packet except the last of the command will be of max length
             size_t samples_sent_now;
             // The last packet of the burst was included
-            if(packets_sent == num_packets) {
-                samples_sent_now = ((packets_sent_now - 1) * _max_samples_per_packet) + samples_in_last_packet;
+            if(packets_sent == num_packets && packets_sent_now > 0) {
+                samples_sent_now = static_cast<size_t>(packets_sent_now - 1) * _max_samples_per_packet + samples_in_last_packet;
 
             // This send did not send the last packet of the uhd send command, all packets are max length
             } else {
-                samples_sent_now = packets_sent_now * _max_samples_per_packet;
+                samples_sent_now = static_cast<size_t>(packets_sent_now) * _max_samples_per_packet;
             }
 
             // Add the samples sent from this sendmmsg to the total for this function
-            samples_sent += samples_sent_now;
+            samples_sent += static_cast<ssize_t>(samples_sent_now);
 
             for(size_t ch_i = 0; ch_i < _NUM_CHANNELS; ch_i++) {
                 ch_send_buffer_info_group[ch_i].buffer_level_manager.update((size_t) samples_sent_now);
@@ -631,7 +630,7 @@ private:
         // NOTE: samples_sent here will be non 0 because of the dummy samples, if dummy samples are removed we will need a new way of checking if packets were send
         // Mark when an end of burst was sent
         if(!is_eob_send) [[likely]] {
-            return samples_sent;
+            return static_cast<size_t>(samples_sent);
         } else {
             if(!samples_sent) {
                 // The EOB was not send, remove it from the list for buffer level calculations

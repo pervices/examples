@@ -79,7 +79,7 @@ inline static uint32_t vrt_to_chdr(const uint32_t vrt, const if_packet_info_t &i
     const uint32_t words32 = vrt & 0xffff;
     int bytes_rem = info.num_payload_bytes % 4;
     if (bytes_rem != 0) bytes_rem -= 4; //adjust for round up
-    uint32_t chdr = (words32 * 4) + bytes_rem;
+    uint32_t chdr = (words32 * 4) + static_cast<uint32_t>(bytes_rem);
     chdr |= (info.packet_count & 0xfff) << 16;
     chdr |= ((vrt >> 30) & 0x1) << 31; //context packet
     chdr |= ((vrt >> 20) & 0x1) << 29; //has tsf
@@ -1650,7 +1650,7 @@ inline void __if_hdr_pack_be(
 
     //fill in complete header word
     vrt_hdr_word32 = uint32_t(0
-        | (if_packet_info.packet_type << 29)
+        | (static_cast<uint32_t>(if_packet_info.packet_type) << 29)
         | vrt_hdr_flags
         | ((if_packet_info.packet_count & 0xf) << 16)
         | (if_packet_info.num_packet_words32 & 0xffff)
@@ -1978,7 +1978,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2003,7 +2003,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2028,7 +2028,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2054,7 +2054,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2080,7 +2080,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2107,7 +2107,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2134,7 +2134,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2162,7 +2162,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2188,7 +2188,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2215,7 +2215,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2242,7 +2242,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2270,7 +2270,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2298,7 +2298,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2327,7 +2327,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2356,7 +2356,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2386,7 +2386,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2698,7 +2698,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2723,7 +2723,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2748,7 +2748,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2774,7 +2774,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2800,7 +2800,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2827,7 +2827,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2854,7 +2854,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2882,7 +2882,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2908,7 +2908,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2935,7 +2935,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2962,7 +2962,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -2990,7 +2990,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3018,7 +3018,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3047,7 +3047,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3076,7 +3076,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3106,7 +3106,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3418,7 +3418,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3443,7 +3443,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3468,7 +3468,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3494,7 +3494,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3520,7 +3520,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3547,7 +3547,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3574,7 +3574,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3602,7 +3602,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3628,7 +3628,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3655,7 +3655,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3682,7 +3682,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3710,7 +3710,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3738,7 +3738,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3767,7 +3767,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3796,7 +3796,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -3826,7 +3826,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -4138,7 +4138,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -4163,7 +4163,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -4188,7 +4188,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -4214,7 +4214,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -4240,7 +4240,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -4267,7 +4267,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -4294,7 +4294,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -4322,7 +4322,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -4348,7 +4348,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -4375,7 +4375,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -4402,7 +4402,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -4430,7 +4430,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -4458,7 +4458,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -4487,7 +4487,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -4516,7 +4516,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
@@ -4546,7 +4546,7 @@ inline void __if_hdr_unpack_be(
             if_packet_info.has_tlr = true;
             if_packet_info.tlr = BE_MACRO(packet_buff[packet_words32-1]);
             {
-                const int indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
+                const uint32_t indicators = (if_packet_info.tlr >> 20) & (if_packet_info.tlr >> 8);
                 if ((indicators & (1 << 0)) != 0) if_packet_info.eob = true;
                 if ((indicators & (1 << 1)) != 0) if_packet_info.sob = true;
                 // TODO: fix this. It seems to be detecting spurious empty bytes or our packets are wrong
