@@ -36,7 +36,6 @@ target_compile_options(send_main PRIVATE
     -Wconversion
     -Wsign-conversion
     -Wnull-dereference
-    -Wdouble-promotion
     -Wformat=2
     -Wimplicit-fallthrough
 )
