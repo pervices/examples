@@ -11,6 +11,11 @@
 #include "clock_sync.hpp"
 #include "super_send_packet_handler_mmsg.hpp"
 
+// Select which device to compile for
+// CYAN will work for Chestnut and well, and CRIMSON will work for Calamine
+#define CYAN
+// #define CRIMSON
+
 int main() {
     std::cout << "Starting" << std::endl;
 
@@ -31,20 +36,39 @@ int main() {
     // Reset tx dsp to clean up artifacts from earlier
     management_iface.set_int("tx/a/dsp/rstreq", 1);
 
-    // TODO: set gain and frequency
+    // NOTE: gain and frequency are not set, this is purely a demo of sending packets of data
 
     std::vector<size_t> channels = {0};
-    // TODO: adjust limit for Crimson
-    size_t max_samples_per_packet = /*8912 is the maximum bytes samples can take up. sc16 are 4 bytes each*/ 8912 / 4;
+    // Number of bytes of samples per packet
+#ifdef CYAN
+    size_t SAMPLE_BYTES_PER_PACKET = 8912; // Cyan
+#elif defined (CRIMSON)
+    size_t SAMPLE_BYTES_PER_PACKET = 8920; // Crimson
+#else
+    #error Unsupported configuration. Must be CYAN/CRIMSON
+#endif
+    size_t max_samples_per_packet = SAMPLE_BYTES_PER_PACKET / /* 4 bytes per sample */4;
     int64_t buffer_size = (int64_t) management_iface.get_double("system/get_max_buffer_level");
     std::vector<std::string> dst_ips = { "10.10.10.2" };
     std::vector<int> dst_ports = { 42836 };
-    // Tick rate of the device's clock. 250MHz for Cyan, 325MHz or 300MHz for Crimson
+    // Tick rate of the device's clock
+#ifdef CYAN
     double tick_rate = 250000000;
-    // Packets must be a multiple of a certain length on Cyan depending on the FPGA version
-    // You can get it dynamically on Cyan
-    // Check CRIMSON_TNG_PACKET_NSAMP_MULTIPLE in https://github.com/pervices/uhd if porting this to Crimson
+#elif defined(CRIMSON)
+    // Crimson can be 325MHz or 300MHz depending on the config.
+    // It will be half the max sample rate.
+    double tick_rate = management_iface.get_double("system/max_rate") / 2;
+#else
+    #error Unsupported configuration. Must be CYAN/CRIMSON
+#endif
+    // Packets must be a multiple of a certain length depending on the FPGA/device
+#ifdef CYAN
     size_t packet_size_multiple = static_cast<size_t>(management_iface.get_int("system/nsamps_multiple_tx"));
+#elif defined (CRIMSON)
+    size_t packet_size_multiple = 2;
+#else
+    #error Unsupported configuration. Must be CYAN/CRIMSON
+#endif
 
     // Calculated the time of the device a packet sent now would arrive at
     std::shared_ptr<clock_sync> clock_sync_manager =  clock_sync::make("10.10.10.2", 42809, tick_rate);
