@@ -27,9 +27,9 @@
 		{
 		}
 
-		pidc_tl( double sp, double Kp, double Ki, double Kd, double derivative_filter_frequency )
+		pidc_tl( double sp, double Kp_, double Ki_, double Kd_, double derivative_filter_frequency )
 		:
-			pidc( sp, Kp, Ki, Kd, derivative_filter_frequency )
+			pidc( sp, Kp_, Ki_, Kd_, derivative_filter_frequency )
 		{
 		}
 

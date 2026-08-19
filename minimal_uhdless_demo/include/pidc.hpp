@@ -39,11 +39,11 @@
 		{
 		}
 
-		pidc( double sp, double Kp, double Ki, double Kd, double derivative_filter_frequency )
+		pidc( double sp, double Kp_, double Ki_, double Kd_, double derivative_filter_frequency )
 		:
-			Kp( Kp ),
-			Ki( Ki ),
-			Kd( Kd ),
+			Kp( Kp_ ),
+			Ki( Ki_ ),
+			Kd( Kd_ ),
 			e( DEFAULT_MAX_ERROR_FOR_DIVERGENCE ),
 			i( 0.0 ),
 			// initialize the control variable to be equal to the set point, so error is initially zero
@@ -57,9 +57,9 @@
 		{
 			(void) sp;
 			const std::string s[] = { "Kp", "Ki", "Kd" };
-			const double K[] = { Kp, Ki, Kd };
-			for( unsigned i = 0; i < sizeof( K ) / sizeof( K[ 0 ] ); i++ ) {
-				if ( K[ i ] < 0 ) {
+			const double K[] = { Kp_, Ki_, Kd_ };
+			for( unsigned n = 0; n < sizeof( K ) / sizeof( K[ 0 ] ); n++ ) {
+				if ( K[ n ] < 0 ) {
 					throw std::invalid_argument( "PID K-values are, by definition, non-negative" );
 				}
 			}
@@ -115,10 +115,10 @@
 			return cv - offset;
 		}
 
-		void reset( const time_spec_t &time, const double offset ) {
+		void reset( const time_spec_t &time, const double offset_ ) {
             i = 0;
             cv = 0;
-            this->offset = offset;
+            this->offset = offset_;
 			last_time = time;
 			e = max_error_for_divergence;
 			i = 0;

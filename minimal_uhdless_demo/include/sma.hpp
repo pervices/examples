@@ -12,9 +12,9 @@
 
 	public:
 
-		sma( size_t N = 16 )
+		sma( size_t N_ = 16 )
 		:
-			N( N ),
+			N( N_ ),
 			avg( 0 )
 		{
 		}
@@ -39,8 +39,8 @@
 			return avg;
 		}
 
-		void set_window_size( double N ) {
-			this->N = N;
+		void set_window_size( double N_ ) {
+			this->N = N_;
 		}
 
 		double get_average() {
