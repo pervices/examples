@@ -1,3 +1,9 @@
+//
+// Copyright 2026 Per Vices Corporation
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+
 #ifndef INCLUDED_UHD_UTILS_SMA_HPP
 #define INCLUDED_UHD_UTILS_SMA_HPP
 

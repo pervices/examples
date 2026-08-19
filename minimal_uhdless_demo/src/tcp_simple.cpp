@@ -1,4 +1,8 @@
-// Copyright 2024 Per Vices Corporation
+//
+// Copyright 2024,2026 Per Vices Corporation
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
 
 // Header
 #include "../include/tcp_simple.hpp"

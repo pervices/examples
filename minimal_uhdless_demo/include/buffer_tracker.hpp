@@ -1,4 +1,9 @@
-// Copyright 2023-2024 Per Vices Corporation
+//
+// Copyright 2023-2024,2026 Per Vices Corporation
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+
 #pragma once
 
 #include <cstdint>
