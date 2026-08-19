@@ -101,7 +101,7 @@ void clock_sync::reset_time_diff_pid() {
 
     time_diff_recv( reset_tdr );
 
-    double new_offset = (double) reset_tdr.tv_sec + (reset_tdr.tv_tick /  _tick_rate);
+    double new_offset = (double) reset_tdr.tv_sec + (static_cast<double>(reset_tdr.tv_tick) /  _tick_rate);
 
     time_diff_pidc.reset(reset_now, new_offset);
 }
@@ -111,7 +111,7 @@ void clock_sync::time_diff_process( const time_diff_resp & tdr, const time_spec_
 
     static const double sp = 0.0;
 
-    double pv = (double) tdr.tv_sec + (tdr.tv_tick / _tick_rate);
+    double pv = (double) tdr.tv_sec + (static_cast<double>(tdr.tv_tick) / _tick_rate);
 
     time_spec_t cv = time_diff_pidc.update_control_variable( sp, pv, now );
 
@@ -199,7 +199,7 @@ void clock_sync::loop_thread_fn( clock_sync *self ) {
         if ( dt > 0.0 ) {
             // Wait until its time for the next sync packet if its in the future
             req.tv_sec = dt.get_full_secs();
-            req.tv_nsec = dt.get_frac_secs() * 1e9;
+            req.tv_nsec = (long) (dt.get_frac_secs() * 1e9);
             nanosleep( &req, &rem );
         } else {
             // Skip this request if we are late

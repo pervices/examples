@@ -132,7 +132,7 @@
 
 			double filtered_error;
 
-			filtered_error = abs(error_filter.get_average());
+			filtered_error = std::abs(error_filter.get_average());
 
             if ( filtered_error >= RESET_THRESHOLD ) {
                 if ( (time - last_status_time).get_real_secs() >= 1 ) {
@@ -168,7 +168,7 @@
 		}
 		void set_error_filter_length( size_t len ) {
 			double avg = error_filter.get_average();
-			error_filter.set_window_size( len );
+			error_filter.set_window_size( static_cast<double>(len) );
 			error_filter.reset();
 			error_filter.update( avg );
 		}

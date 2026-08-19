@@ -358,7 +358,7 @@ private:
     ) {
 
         // Number of packets to send
-        size_t num_packets = static_cast<size_t>(std::ceil(((double)nsamps_to_send)/_max_samples_per_packet));
+        size_t num_packets = static_cast<size_t>(std::ceil(((double)nsamps_to_send)/static_cast<double>(_max_samples_per_packet)));
 
         size_t samples_in_last_packet = nsamps_to_send - (_max_samples_per_packet * (num_packets - 1));
 
@@ -487,11 +487,11 @@ private:
         struct timespec timeout_time;
         clock_gettime(CLOCK_MONOTONIC_COARSE, &timeout_time);
         int64_t timeout_s = (int64_t) timeout;
-        int64_t timeout_ns = (int64_t) ((timeout - timeout_s) * 1e9);
+        int64_t timeout_ns = (int64_t) ((timeout - static_cast<double>(timeout_s)) * 1e9);
         int64_t sum_ns = timeout_ns + timeout_time.tv_nsec;
         int64_t carry = 0;
-        if(sum_ns > 1e9) {
-            sum_ns -= 1e9;
+        if(sum_ns > 1000000000) {
+            sum_ns -= 1000000000;
             carry = 1;
         }
 
@@ -541,7 +541,7 @@ private:
             // Always send start of burst or end of packets because they are needed for control
             // Send packets without tsf since they don't have a set time
             if(
-                /* Packet is in the future*/ packet_header_infos[packets_sent].tsf >= static_cast<size_t>( _clock_sync->get_device_time().to_ticks(_TICK_RATE) ) + (drop_lead * _TICK_RATE) ||
+                /* Packet is in the future*/ static_cast<double>(packet_header_infos[packets_sent].tsf) >= static_cast<double>( _clock_sync->get_device_time().to_ticks(_TICK_RATE) ) + (drop_lead * _TICK_RATE) ||
                 /* Packet is start of burst */ packet_header_infos[packets_sent].sob ||
                 /* Packet is end of burst*/ packet_header_infos[packets_sent].eob ||
                 /* Packet does not have a timestamp*/ !packet_header_infos[packets_sent].has_tsf

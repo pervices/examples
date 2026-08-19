@@ -27,14 +27,14 @@ void set_thread_priority(float priority, bool realtime)
 {
     if (realtime) {
         // Shift priority range so pseudo realtime threading can always be higher
-        priority = ((priority + 1) * 0.25) + 0.5;
+        priority = static_cast<float>(((priority + 1) * 0.25) + 0.5);
         check_priority_range(priority);
 
         set_thread_priority_non_realtime(priority);
     } else {
         // Shift priority range so pseudo realtime threading can always be higher
         if (priority > 0) {
-            priority = (priority * 0.5);
+            priority = static_cast<float>(priority * 0.5);
         }
         check_priority_range(priority);
 

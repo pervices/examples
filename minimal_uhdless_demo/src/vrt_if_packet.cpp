@@ -41,7 +41,7 @@ static pred_table_type get_pred_unpack_table(void)
 {
     pred_table_type table(1 << 9, 0); //only 9 bits useful here (20-28)
     for (size_t i = 0; i < table.size(); i++){
-        uint32_t vrt_hdr_word = i << 20;
+        uint32_t vrt_hdr_word = static_cast<uint32_t>(i) << 20;
         if(vrt_hdr_word & 0x10000000) table[i] |= 0x1;
         if(vrt_hdr_word & 0x8000000) table[i] |= 0x2;
         if(vrt_hdr_word & 0xc00000) table[i] |= 0x4;

@@ -48,7 +48,7 @@ send_packet_handler_mmsg::send_packet_handler_mmsg(const std::vector<size_t>& ch
 
         dst_address.sin_family = AF_INET;
         dst_address.sin_addr.s_addr = inet_addr(dst_ips[n].c_str());
-        dst_address.sin_port = htons(dst_ports[n]);
+        dst_address.sin_port = htons(static_cast<uint16_t>(dst_ports[n]));
 
         if(connect(send_socket_fd, (struct sockaddr*)&dst_address, sizeof(dst_address)) < 0)
         {
@@ -114,7 +114,7 @@ void send_packet_handler_mmsg::set_samp_rate(const double rate) {
 
     // Drop packets if they are within the lower of 20% of a buffer of being late and 40us
     // 40e-6 was chosen since it is extremely rare for packets to be over 35e-6 seconds late based on clock sync predictions
-    drop_lead = std::min(0.2 * _DEVICE_BUFFER_SIZE / _sample_rate, 40e-6);
+    drop_lead = std::min(0.2 * static_cast<double>(_DEVICE_BUFFER_SIZE) / _sample_rate, 40e-6);
 }
 
 send_packet_handler_mmsg::ch_send_buffer_info::ch_send_buffer_info(const size_t size, const size_t vrt_header_size, const size_t cache_size, const int64_t device_target_nsamps, const double rate)
@@ -152,7 +152,7 @@ int send_packet_handler_mmsg::check_fc_npackets(const size_t ch_i) {
     time_spec_t device_time = _clock_sync->get_device_time();
     int64_t buffer_level = ch_send_buffer_info_group[ch_i].buffer_level_manager.get_buffer_level(device_time);
 
-    int num_packets_to_send = (int) std::ceil((_DEVICE_TARGET_NSAMPS - buffer_level) / ((double)_max_samples_per_packet));
+    int num_packets_to_send = (int) std::ceil(static_cast<double>(_DEVICE_TARGET_NSAMPS - buffer_level) / ((double)_max_samples_per_packet));
 
     return num_packets_to_send;
 }

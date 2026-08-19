@@ -34,13 +34,13 @@
 				avg += v;
 			}
 
-			avg /= X.size();
+			avg /= static_cast<double>(X.size());
 
 			return avg;
 		}
 
 		void set_window_size( double N_ ) {
-			this->N = N_;
+			this->N = static_cast<size_t>(N_);
 		}
 
 		double get_average() {

@@ -50,7 +50,7 @@ int main() {
             /* Use string since to get since it may exceed the size of int*/ buffer_size,
             dst_ips,
             dst_ports,
-            /* Target buffer level */ (int64_t) (buffer_size * 0.5),
+            /* Target buffer level */ (int64_t) (static_cast<double>(buffer_size) * 0.5),
             packet_size_multiple,
             tick_rate,
             clock_sync_manager

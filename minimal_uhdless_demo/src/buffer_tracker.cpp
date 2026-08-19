@@ -69,7 +69,7 @@ int64_t buffer_tracker::get_buffer_level( const time_spec_t & now ) {
 
 
     time_spec_t time_streaming = now - blanked_time - partial_blank_period;
-    uint64_t samples_consumed = (uint64_t)(time_streaming.get_full_secs() * nominal_sample_rate) + (uint64_t)(time_streaming.get_frac_secs() * nominal_sample_rate);
+    uint64_t samples_consumed = (uint64_t)(static_cast<double>(time_streaming.get_full_secs()) * nominal_sample_rate) + (uint64_t)(time_streaming.get_frac_secs() * nominal_sample_rate);
     if(samples_consumed > total_samples_sent) {
         return 0;
     } else {
