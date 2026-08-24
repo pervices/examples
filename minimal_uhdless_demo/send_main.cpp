@@ -114,10 +114,10 @@ int main() {
 
     size_t samples_sent = 0;
     // Send 10 seconds of samples
-    size_t samples_to_send = (size_t) actual_sample_rate * 10;
+    size_t total_samples_to_send = (size_t) actual_sample_rate * 10;
 
-    while(samples_sent < samples_to_send) {
-        size_t samples_this_send = std::min(samples.size(), samples_to_send - samples_sent);
+    while(samples_sent < total_samples_to_send) {
+        size_t samples_this_send = std::min(samples.size(), total_samples_to_send - samples_sent);
         samples_sent += send_manager.send(sample_ptrs, samples_this_send, md, 5);
 
         md.start_of_burst = false;
